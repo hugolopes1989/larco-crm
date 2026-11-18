@@ -115,6 +115,7 @@ table.atvt td,table.atvt th{white-space:nowrap}table.atvt tr.zero td{background:
 .bar{height:6px;border-radius:3px;background:#e7ecea;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 nav.tabs{display:flex;gap:4px;padding:10px max(3vw,14px) 0;flex-wrap:wrap}
 nav.tabs button{border:0;background:none;padding:10px 14px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--mut);font-weight:600}
+.gnota{background:#fff6e6;border-left:3px solid var(--or);padding:6px 10px;border-radius:6px;font-size:13px;margin:4px 0 8px}.sug{font-size:13px;color:var(--g);background:#eef2ff;border-radius:6px;padding:6px 10px}.row.grp .nm{color:var(--g)}details.feitos{margin-top:10px;border-top:1px dashed #cfd5e6;padding-top:6px}details.feitos summary{cursor:pointer;font-weight:600;color:#2e7d32;padding:6px 4px}details.feitos .row{opacity:.75}tr.lk{cursor:pointer}tr.lk:hover td{background:#f5f7ff}
 .leva{color:var(--g);font-size:12px}.leva b{color:var(--or)}table.sem tr.hj td{background:#fff6e6}table.sem td:nth-child(2){min-width:120px}
 nav.tabs button.on{background:var(--card);color:var(--g);box-shadow:0 -2px 0 var(--g) inset}
 nav.tabs .n{background:var(--coral);color:#fff;border-radius:10px;padding:0 7px;font-size:12px;margin-left:6px}
@@ -298,7 +299,37 @@ const habHoje = x => !!(S.sem?.[x.id]?.dia_habitual_hoje && !S.sem[x.id].comprou
 const diaHoje = () => { const d = hojeSP().getDay(); return d === 0 ? 7 : d; };
 function prodsDia(id, d) { const r = (S.sem?.[id]?.dias || []).find(z => z.d === d); return (r?.prods || []).filter(p => +p.m3 > 0); }
 function txtHab(id) { const h = S.sem?.[id]?.dias_habituais; return h && h.length ? h.map(d => DOW[d][1]).join(' e ') : ''; }
-const filaHoje = x => x.situacao === 'cliente' && (x.contato_pendente || x.no_dia_de_comprar || habHoje(x) || (x.proximo_contato && x.proximo_contato <= new Date().toISOString().slice(0,10)));
+const hojeISO = () => { const h = hojeSP(); return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`; };
+const dataSP = ts => { if (!ts) return null; const d = new Date(new Date(ts).toLocaleString('en-US', {timeZone:'America/Sao_Paulo'})); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const RETENTAR_H = 2;
+const contatoHoje = x => dataSP(x.ultimo_contato) === hojeISO();
+const retentar = x => contatoHoje(x) && x.ultimo_resultado === 'nao_atendeu' && (Date.now() - new Date(x.ultimo_contato).getTime()) >= RETENTAR_H*3600e3;
+const feitoHoje = x => contatoHoje(x) && !retentar(x);
+const adiado = x => !!(x.proximo_contato && x.proximo_contato > hojeISO());
+const elegivel = x => x.contato_pendente || x.no_dia_de_comprar || habHoje(x) || (x.proximo_contato && x.proximo_contato <= hojeISO());
+const filaHoje = x => x.situacao === 'cliente' && !feitoHoje(x) && (retentar(x) || (!adiado(x) && elegivel(x)));
+const grupoReal = g => !!(g && !/sem grupo/i.test(g));
+const membrosGrupo = g => grupoReal(g) ? (S.rows || []).filter(r => r.grupo_economico === g) : [];
+const ehGrupo = x => grupoReal(x.grupo_economico) && membrosGrupo(x.grupo_economico).length > 1;
+function addDias(n, d0) { const d = d0 ? new Date(d0) : hojeSP(); d.setDate(d.getDate() + n); if (d.getDay() === 0) d.setDate(d.getDate() + 1); return d; }
+const isoD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function sugerirRetorno(x, res) {
+  const pros = !x.ultima_compra, c = +x.ciclo_dias || 0;
+  if (pros) return isoD(addDias({cotou:2, nao_atendeu:1, vendeu:7}[res] || 30));
+  if (res === 'nao_atendeu') return hojeISO();
+  if (res === 'cotou') return isoD(addDias(1));
+  if (res === 'sem_demanda') return isoD(addDias(c ? Math.max(Math.round(c/2), 2) : 3));
+  if (res === 'perdeu') return isoD(addDias(c ? Math.max(Math.round(c), 7) : 7));
+  let d = addDias(c ? Math.max(Math.round(c) - 1, 2) : 7);
+  const hab = S.sem?.[x.id]?.dias_habituais;
+  if (hab && hab.length) { for (let i = 0; i < 5; i++) { const w = d.getDay() === 0 ? 7 : d.getDay(); if (hab.includes(w)) break; d = addDias(1, d); } }
+  return isoD(d);
+}
+function txtSugestao(xs, res) {
+  if (res === 'nao_atendeu' && xs.some(x => x.ultima_compra)) return `Volta para a sua lista daqui a ${RETENTAR_H} horas para nova tentativa.`;
+  const d = xs.map(x => sugerirRetorno(x, res)).sort()[0]; const dd = new Date(d + 'T12:00:00');
+  return `Próximo contato sugerido: <b>${DOW[dd.getDay() === 0 ? 7 : dd.getDay()][0]}, ${dt(d)}</b>. ${xs.length > 1 ? 'Os postos voltam' : 'O cliente volta'} para a lista nesse dia.`;
+}
 function base() {
   const rs = S.rows;
   if (S.tab === 'hoje') return rs.filter(filaHoje);
@@ -363,7 +394,7 @@ function desenharLista() {
   if (caca && !['alvo','mun','nome','cresc','queda'].includes(S.ordem)) S.ordem = 'alvo';
   l.sort(cmp[S.ordem] || cmp.prio);
   const msgVazio = {hoje:'Nenhum contato pendente hoje. 👏', recup:'Nenhum cliente em recuperação.', prosp:'Sem prospects nesta carteira.', caca:'Nenhum posto compra desse concorrente.'}[S.tab] || 'Nada encontrado.';
-  $('#lista').innerHTML = l.length ? l.slice(0, 600).map(x => {
+  const linha = x => {
     const pros = !x.ultima_compra;
     const hh = habHoje(x), th = txtHab(x.id);
     const sub = pros ? `${esc(x.municipio||'')}${x.uf?'/'+esc(x.uf):''} · ${x.situacao==='cliente'?'cadastrado, sem compra em 12 meses':esc(x.etapa_funil||'prospect')}` :
@@ -372,7 +403,27 @@ function desenharLista() {
     const tags = (x.contato_pendente?'<span class="tag p">pendente</span>':'') + (hh?`<span class="tag d" title="Costuma comprar às ${esc(th)}">compra às ${esc(DOW[diaHoje()][1])}</span>`:'') + (x.no_dia_de_comprar?'<span class="tag d">dia de comprar</span>':'') + (caca ? (x.situacao==='cliente'&&x.ultima_compra?'<span class="tag d">cliente Larco</span>':'<span class="tag">prospect</span>') : cd.length?`<span class="tag c ${cd.some(d=>d.d==='PETROBAHIA')?'pb':''}">${esc(cd[0].d)}${cd.length>1?' +'+(cd.length-1):''}</span>`:'');
     const ev = caca ? evol(x.id) : null;
     const num = caca ? `<b class="alvo-v">${nf(volAlvo(x.id))} m³</b>na ${esc(S.alvo)}${ev?`<br><span class="evl">${spark(ev)} ${evTag(ev)}</span>`:volLarcoEsp(x.id)?`<br><span class="sub">Larco ${nf(volLarcoEsp(x.id))} m³</span>`:''}` : pros ? (x.vmm_mercado ? `<b>${nf(x.vmm_mercado)} m³</b>mercado/mês` : '<span class="sub">sem volume</span>') : `<b>${nf((x.volume_12m||0)/12,(x.volume_12m||0)/12<10?1:0)} m³</b>média/mês`;
-    return `<div class="row ${S.sel===x.id?'sel':''}" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${tags}${sub}</div></div><div class="num">${num}</div></div>`;
+    return `<div class="row ${S.sel===x.id?'sel':''}" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${retentar(x)?'<span class="tag p">tentar de novo</span>':''}${tags}${sub}</div></div><div class="num">${num}</div></div>`; };
+  const SEMO = ['vermelho','amarelo','verde','sem_compra'];
+  const cardGrupo = (g, itens, feito) => { const mem = membrosGrupo(g); const m3 = mem.reduce((a,x) => a + (x.volume_12m||0)/12, 0);
+    const pior = SEMO.find(c => itens.some(x => x.semaforo === c)) || 'verde';
+    const tg = (itens.some(x=>x.contato_pendente)?'<span class="tag p">pendente</span>':'') + (itens.some(habHoje)?`<span class="tag d">compra às ${esc(DOW[diaHoje()][1])}</span>`:'') + (itens.some(x=>x.no_dia_de_comprar)?'<span class="tag d">dia de comprar</span>':'') + (itens.some(retentar)?'<span class="tag p">tentar de novo</span>':'');
+    const u = itens[0];
+    const sub = feito ? `${RES[u.ultimo_resultado]||'Contato'} às ${new Date(u.ultimo_contato).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}${u.ultimo_resultado==='nao_atendeu'?' · volta para nova tentativa':''}` : `${itens.length} ${itens.length>1?'postos':'posto'} na lista de hoje · ${mem.length} postos do grupo na sua carteira`;
+    return `<div class="row grp ${S.selG===g?'sel':''}" tabindex="0" data-grp="${esc(g)}"><span class="dot ${pior}"></span><div><div class="nm">🏢 ${esc(g)}</div><div class="sub">${feito?'':tg}${sub}</div></div><div class="num"><b>${nf(m3, m3<10?1:0)} m³</b>média/mês do grupo</div></div>`; };
+  const feitoLinha = x => `<div class="row" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${RES[x.ultimo_resultado]||'Contato'} às ${new Date(x.ultimo_contato).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}${x.ultimo_resultado==='nao_atendeu'?' · volta para nova tentativa':''}</div></div><div class="num"></div></div>`;
+  const agrupar = (lst, fn, fnG) => { const vis = new Set(), out = []; lst.forEach(x => { if (ehGrupo(x)) { const g = x.grupo_economico; if (vis.has(g)) return; vis.add(g); out.push(fnG(g, lst.filter(y => y.grupo_economico === g))); } else out.push(fn(x)); }); return out; };
+  if (S.tab === 'hoje') {
+    const feitos = (S.rows||[]).filter(x => x.situacao === 'cliente' && contatoHoje(x) && !retentar(x)).filter(x => !f || (x.razao_social||'').toLowerCase().includes(f) || (x.municipio||'').toLowerCase().includes(f) || (x.grupo_economico||'').toLowerCase().includes(f));
+    const cards = agrupar(l, linha, (g, it) => cardGrupo(g, it, false));
+    const fcards = agrupar(feitos, feitoLinha, (g, it) => cardGrupo(g, it, true));
+    $('#lista').innerHTML = (cards.length ? cards.join('') : `<div class="empty">${feitos.length ? 'Lista do dia concluída. 👏' : 'Nenhum contato pendente hoje. 👏'}</div>`) +
+      (fcards.length ? `<details class="feitos"><summary>✔ Feitos hoje (${fcards.length})</summary>${fcards.join('')}</details>` : '');
+    document.querySelectorAll('#lista .row').forEach(el => { const go = () => el.dataset.grp ? abrirGrupo(el.dataset.grp) : abrirFicha(+el.dataset.id); el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+    return;
+  }
+  $('#lista').innerHTML = l.length ? l.slice(0, 600).map(x => {
+    return linha(x);
   }).join('') + (l.length > 600 ? `<div class="empty">Mostrando 600 de ${l.length}. Use a busca.</div>` : '') : `<div class="empty">${msgVazio}</div>`;
   document.querySelectorAll('.row').forEach(el => { el.onclick = () => abrirFicha(+el.dataset.id); el.onkeydown = e => { if (e.key === 'Enter') abrirFicha(+el.dataset.id); }; });
 }
@@ -381,8 +432,59 @@ function desenharLista() {
 const RES = {vendeu:'Vendeu', cotou:'Cotou', sem_demanda:'Sem demanda', perdeu:'Perdeu', nao_atendeu:'Não atendeu'};
 const MOT = {preco:'Preço', prazo:'Prazo', falta_produto:'Falta de produto', logistica:'Logística/frete', credito:'Crédito', concorrente:'Fidelizado a concorrente', outro:'Outro'};
 const CAN = {ligacao:'Ligação', whatsapp:'WhatsApp', visita:'Visita', email:'E-mail'};
+function formContato(xs, g) {
+  return `<h3>Registrar contato</h3>${g ? `<div class="gnota">🏢 Este contato vale para os <b>${xs.length} postos</b> do ${esc(g)} na sua carteira.</div>` : ''}
+   <form class="ct" id="fct">
+     <label>Canal<select name="canal">${Object.entries(CAN).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
+     <label>Resultado<select name="resultado" id="res">${Object.entries(RES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
+     <label id="lmot" style="display:none">Motivo da perda *<select name="motivo_perda"><option value="">—</option>${Object.entries(MOT).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
+     <label id="lcon" style="display:none">Concorrente<input name="concorrente" placeholder="Ex.: Vibra, Petrox"></label>
+     <label>Produto<select name="produto"><option value="">—</option>${['DIESEL S10','DIESEL S500','GASOLINA','ALCOOL'].map(p=>`<option>${p}</option>`).join('')}</select></label>
+     <label>Preço cotado (R$/L)<input name="preco_cotado" inputmode="decimal" placeholder="0,0000"></label>
+     <label>Volume potencial (m³)<input name="volume_potencial_m3" inputmode="decimal"></label>
+     <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>
+     <div class="full sug" id="sug"></div>
+     <div class="full"><button class="btn">Salvar contato</button></div>
+   </form>`;
+}
+function ligarFormContato(xs, reabrir) {
+  const res = $('#res'); const tog = () => { const p = res.value === 'perdeu'; $('#lmot').style.display = p ? '' : 'none'; $('#lcon').style.display = p ? '' : 'none'; $('#sug').innerHTML = txtSugestao(xs, res.value); };
+  res.onchange = tog; tog();
+  $('#fct').onsubmit = async e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    if (fd.resultado === 'perdeu' && !fd.motivo_perda) return toast('Informe o motivo da perda.');
+    const num = v => v ? Number(String(v).replace(/\./g,'').replace(',','.')) : null;
+    const lote = xs.length > 1 ? (crypto.randomUUID ? crypto.randomUUID() : null) : null;
+    const proxG = xs.length > 1 ? xs.map(x => sugerirRetorno(x, fd.resultado)).sort()[0] : null;
+    const corpo = xs.map(x => ({cliente_id:x.id, canal:fd.canal, resultado:fd.resultado, motivo_perda:fd.resultado==='perdeu'?fd.motivo_perda:null, concorrente:fd.concorrente||null,
+      produto:fd.produto||null, preco_cotado:num(fd.preco_cotado), volume_potencial_m3:num(fd.volume_potencial_m3), proximo_contato:proxG || sugerirRetorno(x, fd.resultado), observacao:fd.observacao||null, ...(lote?{lote}:{})}));
+    const b = e.target.querySelector('button'); b.disabled = true;
+    try {
+      await api('contatos', {method:'POST', headers:{Prefer:'return=minimal'}, body:JSON.stringify(corpo)});
+      for (const x of xs) if (x.situacao === 'prospect' && x.etapa_funil === 'prospect') await api(`clientes?id=eq.${x.id}`, {method:'PATCH', body:JSON.stringify({etapa_funil: fd.resultado==='cotou'?'cotado':'contatado'})});
+      toast(xs.length > 1 ? `Contato salvo para ${xs.length} postos` : 'Contato salvo'); S.resumo = await api('v_carteira_resumo?select=*&order=carteira_codigo'); await abrir(); reabrir();
+    } catch(er) { b.disabled = false; toast('Erro ao salvar: ' + er.message); }
+  };
+}
+async function abrirGrupo(g) {
+  S.sel = null; S.selG = g; document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', el.dataset.grp === g));
+  const xs = membrosGrupo(g); const fi = $('#ficha'); if (!xs.length) { fi.innerHTML = '<div class="empty">Selecione um cliente na lista.</div>'; return; }
+  fi.innerHTML = '<div class="empty">Carregando…</div>';
+  const cont = await api(`contatos?cliente_id=in.(${xs.map(x=>x.id).join(',')})&select=data_hora,canal,resultado,motivo_perda,concorrente,preco_cotado,observacao,proximo_contato,lote,usuarios(nome)&order=data_hora.desc&limit=60`);
+  const vist = new Set(); const hist = cont.filter(c => { const k = c.lote || (c.data_hora + c.resultado); if (vist.has(k)) return false; vist.add(k); return true; }).slice(0, 15);
+  const m3 = xs.reduce((a,x) => a + (x.volume_12m||0)/12, 0), mes = xs.reduce((a,x) => a + (+x.volume_mes||0), 0), merc = xs.reduce((a,x) => a + (+x.vmm_mercado||0), 0);
+  fi.innerHTML = `<h2>🏢 ${esc(g)}</h2><div class="meta">${xs.length} postos do grupo na carteira ${esc(S.cart||'')}</div>
+   <div class="grid4"><div class="mini"><b>${nf(m3)} m³</b><span>Média/mês (12m)</span></div><div class="mini"><b>${nf(mes)} m³</b><span>No mês</span></div>${merc?`<div class="mini"><b>${nf(merc)} m³</b><span>Compra no mercado</span></div>`:''}<div class="mini"><b>${xs.filter(filaHoje).length}</b><span>Na lista de hoje</span></div></div>
+   <h3>Postos do grupo</h3><div class="scroll"><table><tr><th></th><th>Posto</th><th>Município</th><th class="r">Média/mês</th><th class="r">Sem comprar</th></tr>
+   ${xs.slice().sort((a,b)=>(b.volume_12m||0)-(a.volume_12m||0)).map(x => `<tr class="lk" data-id="${x.id}"><td><span class="dot ${x.semaforo}"></span></td><td>${esc(x.razao_social)}${filaHoje(x)?' <span class="tag d">hoje</span>':''}</td><td>${esc(x.municipio||'')}</td><td class="r">${nf((x.volume_12m||0)/12,1)}</td><td class="r">${x.dias_sem_comprar ?? '–'}d</td></tr>`).join('')}</table></div>
+   ${formContato(xs, g)}
+   <h3>Histórico de contatos do grupo</h3>
+   ${hist.length ? hist.map(c => `<div class="hist"><b>${dt(c.data_hora)} · ${CAN[c.canal]} · ${RES[c.resultado]}</b>${c.motivo_perda?` · ${MOT[c.motivo_perda]}`:''}${c.concorrente?` (${esc(c.concorrente)})`:''}${c.preco_cotado?` · R$ ${nf(c.preco_cotado,4)}/L`:''}<br>${esc(c.observacao||'')} <span class="sub">— ${esc(c.usuarios?.nome||'')}${c.proximo_contato?` · retorno ${dt(c.proximo_contato)}`:''}</span></div>`).join('') : '<div class="sub">Nenhum contato registrado.</div>'}`;
+  fi.querySelectorAll('tr.lk').forEach(tr => tr.onclick = () => abrirFicha(+tr.dataset.id));
+  ligarFormContato(xs, () => abrirGrupo(g));
+}
 async function abrirFicha(id) {
-  S.sel = id; document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', +el.dataset.id === id));
+  S.sel = id; S.selG = null; document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', +el.dataset.id === id));
   const x = S.rows.find(r => r.id === id); const fi = $('#ficha');
   fi.innerHTML = '<div class="empty">Carregando…</div>';
   const [vend, cont] = await Promise.all([
@@ -401,37 +503,12 @@ async function abrirFicha(id) {
    ${secaoSemana(id)}
    ${secaoProd(id)}
    ${secaoDist(id)}
-   <h3>Registrar contato</h3>
-   <form class="ct" id="fct">
-     <label>Canal<select name="canal">${Object.entries(CAN).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
-     <label>Resultado<select name="resultado" id="res">${Object.entries(RES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
-     <label id="lmot" style="display:none">Motivo da perda *<select name="motivo_perda"><option value="">—</option>${Object.entries(MOT).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
-     <label id="lcon" style="display:none">Concorrente<input name="concorrente" placeholder="Ex.: Vibra, Petrox"></label>
-     <label>Produto<select name="produto"><option value="">—</option>${['DIESEL S10','DIESEL S500','GASOLINA','ALCOOL'].map(p=>`<option>${p}</option>`).join('')}</select></label>
-     <label>Preço cotado (R$/L)<input name="preco_cotado" inputmode="decimal" placeholder="0,0000"></label>
-     <label>Volume potencial (m³)<input name="volume_potencial_m3" inputmode="decimal"></label>
-     <label>Próximo contato<input type="date" name="proximo_contato"></label>
-     <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>
-     <div class="full"><button class="btn">Salvar contato</button></div>
-   </form>
+   ${formContato(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], ehGrupo(x) ? x.grupo_economico : null)}
    <h3>Histórico de contatos</h3>
    ${cont.length ? cont.map(c => `<div class="hist"><b>${dt(c.data_hora)} · ${CAN[c.canal]} · ${RES[c.resultado]}</b>${c.motivo_perda?` · ${MOT[c.motivo_perda]}`:''}${c.concorrente?` (${esc(c.concorrente)})`:''}${c.preco_cotado?` · R$ ${nf(c.preco_cotado,4)}/L`:''}<br>${esc(c.observacao||'')} <span class="sub">— ${esc(c.usuarios?.nome||'')}${c.proximo_contato?` · retorno ${dt(c.proximo_contato)}`:''}</span></div>`).join('') : '<div class="sub">Nenhum contato registrado.</div>'}
    ${vend.length ? `<h3>Últimas compras</h3><div class="scroll"><table><tr><th>Data</th><th>Produto</th><th class="r">m³</th><th class="r">R$/L</th><th class="r">Prazo</th><th>Frete</th></tr>${vend.map(v=>`<tr><td>${dt(v.data_emissao)}</td><td>${esc(v.produto)}</td><td class="r">${nf(v.volume_m3,1)}</td><td class="r">${nf(v.preco_litro,4)}</td><td class="r">${v.prazo_dias ?? '–'}d</td><td>${v.frete_modalidade==='C'?'CIF':v.frete_modalidade==='F'?'FOB':esc(v.frete_modalidade||'')}</td></tr>`).join('')}</table></div>` : ''}`;
-  const res = $('#res'); const tog = () => { const p = res.value === 'perdeu'; $('#lmot').style.display = p ? '' : 'none'; $('#lcon').style.display = p ? '' : 'none'; }; res.onchange = tog;
   if ($('#etapa')) $('#etapa').onchange = async e => { try { await api(`clientes?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({etapa_funil:e.target.value})}); x.etapa_funil = e.target.value; toast('Etapa atualizada'); desenharLista(); } catch(er) { toast('Erro: ' + er.message); } };
-  $('#fct').onsubmit = async e => {
-    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
-    if (fd.resultado === 'perdeu' && !fd.motivo_perda) return toast('Informe o motivo da perda.');
-    const num = v => v ? Number(String(v).replace(/\./g,'').replace(',','.')) : null;
-    const body = {cliente_id:id, canal:fd.canal, resultado:fd.resultado, motivo_perda:fd.resultado==='perdeu'?fd.motivo_perda:null, concorrente:fd.concorrente||null,
-      produto:fd.produto||null, preco_cotado:num(fd.preco_cotado), volume_potencial_m3:num(fd.volume_potencial_m3), proximo_contato:fd.proximo_contato||null, observacao:fd.observacao||null};
-    const b = e.target.querySelector('button'); b.disabled = true;
-    try {
-      await api('contatos', {method:'POST', headers:{Prefer:'return=minimal'}, body:JSON.stringify(body)});
-      if (x.situacao === 'prospect' && x.etapa_funil === 'prospect') { await api(`clientes?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({etapa_funil: fd.resultado==='cotou'?'cotado':'contatado'})}); }
-      toast('Contato salvo'); S.resumo = await api('v_carteira_resumo?select=*&order=carteira_codigo'); const keep = id; await abrir(); if (S.rows.find(r => r.id === keep)) abrirFicha(keep);
-    } catch(er) { b.disabled = false; toast('Erro ao salvar: ' + er.message); }
-  };
+  ligarFormContato(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], () => { if (S.rows.find(r => r.id === id)) abrirFicha(id); });
 }
 
 const PROD_NOME = {DIESEL:'Diesel', GASOLINA:'Gasolina', ETANOL:'Etanol'};
