@@ -115,6 +115,7 @@ table.atvt td,table.atvt th{white-space:nowrap}table.atvt tr.zero td{background:
 .bar{height:6px;border-radius:3px;background:#e7ecea;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 nav.tabs{display:flex;gap:4px;padding:10px max(3vw,14px) 0;flex-wrap:wrap}
 nav.tabs button{border:0;background:none;padding:10px 14px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--mut);font-weight:600}
+.ctt{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;background:#f3f6ff;border-radius:8px;padding:8px 10px;margin:6px 0 10px;font-size:13px}.ctt .cbt{display:flex;gap:6px}.btn.wa{background:#1fa855;border-color:#1fa855;color:#fff}.btn.wa:hover{background:#178a45}.wa-mini{border:0;background:#e7f7ee;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;flex:none;margin-left:6px}.wa-mini:hover{background:#c9efd9}.row:has(.wa-mini){grid-template-columns:14px minmax(0,1fr) auto auto}
 .gnota{background:#fff6e6;border-left:3px solid var(--or);padding:6px 10px;border-radius:6px;font-size:13px;margin:4px 0 8px}.sug{font-size:13px;color:var(--g);background:#eef2ff;border-radius:6px;padding:6px 10px}.row.grp .nm{color:var(--g)}details.feitos{margin-top:10px;border-top:1px dashed #cfd5e6;padding-top:6px}details.feitos summary{cursor:pointer;font-weight:600;color:#2e7d32;padding:6px 4px}details.feitos .row{opacity:.75}tr.lk{cursor:pointer}tr.lk:hover td{background:#f5f7ff}
 .leva{color:var(--g);font-size:12px}.leva b{color:var(--or)}table.sem tr.hj td{background:#fff6e6}table.sem td:nth-child(2){min-width:120px}
 nav.tabs button.on{background:var(--card);color:var(--g);box-shadow:0 -2px 0 var(--g) inset}
@@ -231,7 +232,8 @@ async function abrir() {
   if (S.cart) S.rows = await api(`v_cliente_resumo?carteira_codigo=eq.${encodeURIComponent(S.cart)}&select=id,cnpj,razao_social,municipio,uf,segmento,situacao,etapa_funil,telefone,ddd,email,contato_nome,bandeira,grupo_economico,endereco,bairro,lat,lon,ultima_compra,volume_12m,volume_90d,volume_mes,produtos,ciclo_dias,dias_sem_comprar,ultimo_contato,ultimo_resultado,proximo_contato,semaforo,no_dia_de_comprar,contato_pendente,em_recuperacao,vmm_mercado,potencial_m3_mes,situacao_cadastro,origem`);
   S.dist = {};
   S.mens = {};
-  S.sem = {};
+  S.sem = {}; S.ctt = {};
+  if (S.cart) { try { (await api(`clientes?carteira_codigo=eq.${encodeURIComponent(S.cart)}&contato_atualizado_em=not.is.null&select=id,contato_comprador,contato_whatsapp,contato_telefone,contato_atualizado_em,contato_atualizado_por`)).forEach(c => S.ctt[c.id] = c); } catch(e) {} }
   if (S.cart) { try { (await api(`v_cliente_semana?carteira_codigo=eq.${encodeURIComponent(S.cart)}&select=cliente_id,dias_total,dias,dias_habituais,dia_habitual_hoje,comprou_recente`)).forEach(d => S.sem[d.cliente_id] = d); } catch(e) {} }
   if (S.cart) { try { (await api(`v_cliente_mensal?carteira_codigo=eq.${encodeURIComponent(S.cart)}&select=cliente_id,meses`)).forEach(d => S.mens[d.cliente_id] = d.meses); } catch(e) {} }
   S.prod = {};
@@ -403,14 +405,14 @@ function desenharLista() {
     const tags = (x.contato_pendente?'<span class="tag p">pendente</span>':'') + (hh?`<span class="tag d" title="Costuma comprar às ${esc(th)}">compra às ${esc(DOW[diaHoje()][1])}</span>`:'') + (x.no_dia_de_comprar?'<span class="tag d">dia de comprar</span>':'') + (caca ? (x.situacao==='cliente'&&x.ultima_compra?'<span class="tag d">cliente Larco</span>':'<span class="tag">prospect</span>') : cd.length?`<span class="tag c ${cd.some(d=>d.d==='PETROBAHIA')?'pb':''}">${esc(cd[0].d)}${cd.length>1?' +'+(cd.length-1):''}</span>`:'');
     const ev = caca ? evol(x.id) : null;
     const num = caca ? `<b class="alvo-v">${nf(volAlvo(x.id))} m³</b>na ${esc(S.alvo)}${ev?`<br><span class="evl">${spark(ev)} ${evTag(ev)}</span>`:volLarcoEsp(x.id)?`<br><span class="sub">Larco ${nf(volLarcoEsp(x.id))} m³</span>`:''}` : pros ? (x.vmm_mercado ? `<b>${nf(x.vmm_mercado)} m³</b>mercado/mês` : '<span class="sub">sem volume</span>') : `<b>${nf((x.volume_12m||0)/12,(x.volume_12m||0)/12<10?1:0)} m³</b>média/mês`;
-    return `<div class="row ${S.sel===x.id?'sel':''}" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${retentar(x)?'<span class="tag p">tentar de novo</span>':''}${tags}${sub}</div></div><div class="num">${num}</div></div>`; };
+    return `<div class="row ${S.sel===x.id?'sel':''}" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${retentar(x)?'<span class="tag p">tentar de novo</span>':''}${tags}${sub}</div></div><div class="num">${num}</div>${S.tab==='hoje'?`<button type="button" class="wa-mini" data-wa="${x.id}" title="WhatsApp">💬</button>`:''}</div>`; };
   const SEMO = ['vermelho','amarelo','verde','sem_compra'];
   const cardGrupo = (g, itens, feito) => { const mem = membrosGrupo(g); const m3 = mem.reduce((a,x) => a + (x.volume_12m||0)/12, 0);
     const pior = SEMO.find(c => itens.some(x => x.semaforo === c)) || 'verde';
     const tg = (itens.some(x=>x.contato_pendente)?'<span class="tag p">pendente</span>':'') + (itens.some(habHoje)?`<span class="tag d">compra às ${esc(DOW[diaHoje()][1])}</span>`:'') + (itens.some(x=>x.no_dia_de_comprar)?'<span class="tag d">dia de comprar</span>':'') + (itens.some(retentar)?'<span class="tag p">tentar de novo</span>':'');
     const u = itens[0];
     const sub = feito ? `${RES[u.ultimo_resultado]||'Contato'} às ${new Date(u.ultimo_contato).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}${u.ultimo_resultado==='nao_atendeu'?' · volta para nova tentativa':''}` : `${itens.length} ${itens.length>1?'postos':'posto'} na lista de hoje · ${mem.length} postos do grupo na sua carteira`;
-    return `<div class="row grp ${S.selG===g?'sel':''}" tabindex="0" data-grp="${esc(g)}"><span class="dot ${pior}"></span><div><div class="nm">🏢 ${esc(g)}</div><div class="sub">${feito?'':tg}${sub}</div></div><div class="num"><b>${nf(m3, m3<10?1:0)} m³</b>média/mês do grupo</div></div>`; };
+    return `<div class="row grp ${S.selG===g?'sel':''}" tabindex="0" data-grp="${esc(g)}"><span class="dot ${pior}"></span><div><div class="nm">🏢 ${esc(g)}</div><div class="sub">${feito?'':tg}${sub}</div></div><div class="num"><b>${nf(m3, m3<10?1:0)} m³</b>média/mês do grupo</div>${feito?'':`<button type="button" class="wa-mini" data-wag="${esc(g)}" title="WhatsApp">💬</button>`}</div>`; };
   const feitoLinha = x => `<div class="row" tabindex="0" data-id="${x.id}"><span class="dot ${x.semaforo}"></span><div><div class="nm">${esc(x.razao_social)}</div><div class="sub">${RES[x.ultimo_resultado]||'Contato'} às ${new Date(x.ultimo_contato).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}${x.ultimo_resultado==='nao_atendeu'?' · volta para nova tentativa':''}</div></div><div class="num"></div></div>`;
   const agrupar = (lst, fn, fnG) => { const vis = new Set(), out = []; lst.forEach(x => { if (ehGrupo(x)) { const g = x.grupo_economico; if (vis.has(g)) return; vis.add(g); out.push(fnG(g, lst.filter(y => y.grupo_economico === g))); } else out.push(fn(x)); }); return out; };
   if (S.tab === 'hoje') {
@@ -420,6 +422,9 @@ function desenharLista() {
     $('#lista').innerHTML = (cards.length ? cards.join('') : `<div class="empty">${feitos.length ? 'Lista do dia concluída. 👏' : 'Nenhum contato pendente hoje. 👏'}</div>`) +
       (fcards.length ? `<details class="feitos"><summary>✔ Feitos hoje (${fcards.length})</summary>${fcards.join('')}</details>` : '');
     document.querySelectorAll('#lista .row').forEach(el => { const go = () => el.dataset.grp ? abrirGrupo(el.dataset.grp) : abrirFicha(+el.dataset.id); el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+    document.querySelectorAll('#lista .wa-mini').forEach(b => b.onclick = e => { e.stopPropagation();
+      if (b.dataset.wag) { const g = b.dataset.wag; abrirWA(membrosGrupo(g), g, false, () => abrirGrupo(g).then(marcarCanalWA)); }
+      else { const id = +b.dataset.wa, x = S.rows.find(r => r.id === id); abrirWA(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], ehGrupo(x) ? x.grupo_economico : null, false, () => abrirFicha(id).then(marcarCanalWA)); } });
     return;
   }
   $('#lista').innerHTML = l.length ? l.slice(0, 600).map(x => {
@@ -466,6 +471,70 @@ function ligarFormContato(xs, reabrir) {
     } catch(er) { b.disabled = false; toast('Erro ao salvar: ' + er.message); }
   };
 }
+/* ---------- CONTATO DO COMPRADOR + WHATSAPP ---------- */
+const soDig = v => String(v || '').replace(/\D/g, '');
+function normCel(v) { let d = soDig(v); if (d.length >= 12 && d.startsWith('55')) d = d.slice(2); d = d.replace(/^0+/, ''); return /^\d{2}9\d{8}$/.test(d) ? d : null; }
+const fmtCel = d => d ? `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}` : '';
+function cttDe(xs) { for (const x of xs) { const c = S.ctt?.[x.id]; if (c) return c; } return null; }
+function waDe(xs) { const c = cttDe(xs); if (c?.contato_whatsapp) { const n = normCel(c.contato_whatsapp); if (n) return n; } for (const x of xs) { const n = normCel((x.ddd || '') + (x.telefone || '')); if (n) return n; } return null; }
+const saudacao = () => { const h = hojeSP().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
+const nomePosto = x => (x.nome_fantasia || x.razao_social || '').replace(/\b(LTDA|EIRELI|ME|EPP|S\/?A)\b\.?/gi, '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/(^|\s)\S/g, m => m.toUpperCase());
+const listaE = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' e ' + a[a.length - 1] : (a[0] || '');
+const PNOME2 = p => ({'DIESEL S10':'Diesel S10','DIESEL S500':'Diesel S500','GASOLINA':'Gasolina','ALCOOL':'Etanol','ETANOL':'Etanol'})[p] || p;
+function msgPadrao(xs, g) {
+  const x = xs[0], c = cttDe(xs); const nome = c?.contato_comprador ? ', ' + c.contato_comprador.split(' ')[0] : '';
+  const eu = (S.me?.nome || '').split(' ')[0]; const ola = `${saudacao()}${nome}! Aqui é ${eu}, da Larco Distribuidora.`;
+  const alvo = g ? `os postos do ${g}` : `o ${nomePosto(x)}`; const cost = g ? 'costumam' : 'costuma';
+  if (!x.ultima_compra) return `${saudacao()}${nome}! Aqui é ${eu}, consultor(a) da Larco Distribuidora. Atendemos postos bandeira branca na região de ${x.municipio || 'vocês'} e gostaria de apresentar as nossas condições para ${alvo}. Posso te enviar uma cotação de hoje?`;
+  const hh = xs.find(habHoje);
+  if (hh) { const pr = prodsDia(hh.id, diaHoje()).map(p => `${PNOME(p.p) === 'S10' ? 'Diesel S10' : PNOME(p.p) === 'S500' ? 'Diesel S500' : PNOME(p.p)} (${nf(p.m3, (+p.m3 < 10 && +p.m3 % 1) ? 1 : 0)} m³)`);
+    return `${ola} Vi que ${alvo} ${cost} fazer pedido às ${DOW[diaHoje()][1]}.${pr.length ? ` Posso já separar ${listaE(pr)} para hoje?` : ' Posso já separar o pedido de hoje?'} Te passo o preço agora.`; }
+  if (xs.every(y => y.em_recuperacao)) return `${ola} Faz um tempo que ${alvo} não ${g ? 'compram' : 'compra'} com a gente e eu queria entender como podemos voltar a atender vocês. Posso te mandar uma condição de hoje?`;
+  const prods = [...new Set(xs.flatMap(y => y.produtos || []))].map(PNOME2);
+  return `${ola} Tudo bem? Como estão os tanques ${g ? 'dos postos do ' + g : 'do ' + nomePosto(x)}? Posso te passar o preço de hoje${prods.length ? ' de ' + listaE(prods) : ''}?`;
+}
+function cttLinha(xs, g) {
+  const c = cttDe(xs), wa = waDe(xs), x = xs[0];
+  const telQ = x.telefone ? `${x.ddd ? '(' + esc(x.ddd) + ') ' : ''}${esc(x.telefone)}` : '';
+  return `<div class="ctt"><div><b>👤 ${c?.contato_comprador ? esc(c.contato_comprador) : '<span class="sub">Comprador não informado</span>'}</b>
+    · 💬 ${wa ? fmtCel(wa) : '<span class="sub">sem WhatsApp</span>'}${c?.contato_telefone ? ` · ☎️ ${esc(c.contato_telefone)}` : ''}${!c?.contato_whatsapp && telQ ? ` <span class="sub">(cadastro: ${telQ})</span>` : ''}
+    ${c?.contato_atualizado_em ? `<div class="sub">Contato atualizado por ${esc(c.contato_atualizado_por || '')} em ${dt(c.contato_atualizado_em)}</div>` : ''}</div>
+    <div class="cbt"><button type="button" class="btn wa" id="bWA">💬 WhatsApp</button><button type="button" class="btn sec" id="bCtt">✏️ Atualizar contato</button></div></div>`;
+}
+async function salvarCtt(xs, nome, wa, tel) {
+  const body = {contato_comprador: nome || null, contato_whatsapp: wa || null, contato_telefone: tel || null, contato_atualizado_em: new Date().toISOString(), contato_atualizado_por: S.me?.nome || null};
+  await api(`clientes?id=in.(${xs.map(x => x.id).join(',')})`, {method:'PATCH', body:JSON.stringify(body)});
+  xs.forEach(x => S.ctt[x.id] = {id:x.id, ...body});
+}
+function abrirWA(xs, g, soEditar, depois) {
+  const c = cttDe(xs), wa = waDe(xs);
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<form class="mbox" id="fWA" style="max-width:560px"><h3>${soEditar ? 'Atualizar contato' : '💬 Mensagem no WhatsApp'}</h3>
+    <p class="sub">${g ? `🏢 ${esc(g)} · vale para os ${xs.length} postos do grupo` : esc(xs[0].razao_social)}</p>
+    <div class="ct" style="grid-template-columns:1fr 1fr"><label>Nome do comprador<input name="nome" value="${esc(c?.contato_comprador || '')}" placeholder="Ex.: João"></label>
+    <label>WhatsApp<input name="wa" inputmode="tel" value="${wa ? fmtCel(wa) : ''}" placeholder="(81) 99999-9999"></label>
+    <label class="full">Outro telefone (opcional)<input name="tel" value="${esc(c?.contato_telefone || '')}"></label>
+    ${soEditar ? '' : `<label class="full">Mensagem (pode editar)<textarea name="msg" rows="5">${esc(msgPadrao(xs, g))}</textarea></label>`}</div>
+    <div class="mact"><button type="button" class="btn sec" id="wCanc">Cancelar</button><button class="btn ${soEditar ? '' : 'wa'}">${soEditar ? 'Salvar contato' : 'Abrir WhatsApp'}</button></div></form>`;
+  document.body.appendChild(d);
+  $('#wCanc').onclick = () => d.remove(); d.onclick = e => { if (e.target === d) d.remove(); };
+  $('#fWA').onsubmit = async e => { e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    const n = fd.wa.trim() ? normCel(fd.wa) : null;
+    if (fd.wa.trim() && !n) return toast('WhatsApp inválido: use DDD + celular com 9 dígitos.');
+    if (!soEditar && !n) return toast('Informe um WhatsApp válido para enviar.');
+    const mudou = (fd.nome || '') !== (c?.contato_comprador || '') || (n || '') !== (normCel(c?.contato_whatsapp) || (c ? '' : (wa || ''))) || (fd.tel || '') !== (c?.contato_telefone || '');
+    let jan = null; if (!soEditar) jan = window.open(`https://wa.me/55${n}?text=${encodeURIComponent(fd.msg || '')}`, '_blank');
+    try { if (mudou || soEditar) { await salvarCtt(xs, fd.nome.trim(), n, fd.tel.trim()); toast(soEditar ? 'Contato atualizado' : 'Contato atualizado e WhatsApp aberto'); } }
+    catch(er) { toast('Erro ao salvar contato: ' + er.message); }
+    if (!soEditar && !jan) toast('Libere os pop-ups do navegador para abrir o WhatsApp.');
+    d.remove(); if (depois) depois(!soEditar);
+  };
+}
+function marcarCanalWA() { const s = document.querySelector('#fct select[name=canal]'); if (s) { s.value = 'whatsapp'; s.closest('form').scrollIntoView({behavior:'smooth', block:'center'}); } }
+function ligarCtt(xs, g, reabrir) {
+  if ($('#bWA')) $('#bWA').onclick = () => abrirWA(xs, g, false, () => { reabrir().then(marcarCanalWA); });
+  if ($('#bCtt')) $('#bCtt').onclick = () => abrirWA(xs, g, true, () => reabrir());
+}
 async function abrirGrupo(g) {
   S.sel = null; S.selG = g; document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', el.dataset.grp === g));
   const xs = membrosGrupo(g); const fi = $('#ficha'); if (!xs.length) { fi.innerHTML = '<div class="empty">Selecione um cliente na lista.</div>'; return; }
@@ -473,7 +542,7 @@ async function abrirGrupo(g) {
   const cont = await api(`contatos?cliente_id=in.(${xs.map(x=>x.id).join(',')})&select=data_hora,canal,resultado,motivo_perda,concorrente,preco_cotado,observacao,proximo_contato,lote,usuarios(nome)&order=data_hora.desc&limit=60`);
   const vist = new Set(); const hist = cont.filter(c => { const k = c.lote || (c.data_hora + c.resultado); if (vist.has(k)) return false; vist.add(k); return true; }).slice(0, 15);
   const m3 = xs.reduce((a,x) => a + (x.volume_12m||0)/12, 0), mes = xs.reduce((a,x) => a + (+x.volume_mes||0), 0), merc = xs.reduce((a,x) => a + (+x.vmm_mercado||0), 0);
-  fi.innerHTML = `<h2>🏢 ${esc(g)}</h2><div class="meta">${xs.length} postos do grupo na carteira ${esc(S.cart||'')}</div>
+  fi.innerHTML = `<h2>🏢 ${esc(g)}</h2><div class="meta">${xs.length} postos do grupo na carteira ${esc(S.cart||'')}</div>${cttLinha(xs, g)}
    <div class="grid4"><div class="mini"><b>${nf(m3)} m³</b><span>Média/mês (12m)</span></div><div class="mini"><b>${nf(mes)} m³</b><span>No mês</span></div>${merc?`<div class="mini"><b>${nf(merc)} m³</b><span>Compra no mercado</span></div>`:''}<div class="mini"><b>${xs.filter(filaHoje).length}</b><span>Na lista de hoje</span></div></div>
    <h3>Postos do grupo</h3><div class="scroll"><table><tr><th></th><th>Posto</th><th>Município</th><th class="r">Média/mês</th><th class="r">Sem comprar</th></tr>
    ${xs.slice().sort((a,b)=>(b.volume_12m||0)-(a.volume_12m||0)).map(x => `<tr class="lk" data-id="${x.id}"><td><span class="dot ${x.semaforo}"></span></td><td>${esc(x.razao_social)}${filaHoje(x)?' <span class="tag d">hoje</span>':''}</td><td>${esc(x.municipio||'')}</td><td class="r">${nf((x.volume_12m||0)/12,1)}</td><td class="r">${x.dias_sem_comprar ?? '–'}d</td></tr>`).join('')}</table></div>
@@ -482,6 +551,7 @@ async function abrirGrupo(g) {
    ${hist.length ? hist.map(c => `<div class="hist"><b>${dt(c.data_hora)} · ${CAN[c.canal]} · ${RES[c.resultado]}</b>${c.motivo_perda?` · ${MOT[c.motivo_perda]}`:''}${c.concorrente?` (${esc(c.concorrente)})`:''}${c.preco_cotado?` · R$ ${nf(c.preco_cotado,4)}/L`:''}<br>${esc(c.observacao||'')} <span class="sub">— ${esc(c.usuarios?.nome||'')}${c.proximo_contato?` · retorno ${dt(c.proximo_contato)}`:''}</span></div>`).join('') : '<div class="sub">Nenhum contato registrado.</div>'}`;
   fi.querySelectorAll('tr.lk').forEach(tr => tr.onclick = () => abrirFicha(+tr.dataset.id));
   ligarFormContato(xs, () => abrirGrupo(g));
+  ligarCtt(xs, g, () => abrirGrupo(g));
 }
 async function abrirFicha(id) {
   S.sel = id; S.selG = null; document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', +el.dataset.id === id));
@@ -493,7 +563,8 @@ async function abrirFicha(id) {
   const pros = !x.ultima_compra;
   const tel = x.telefone ? `${x.ddd ? '(' + esc(x.ddd) + ') ' : ''}${esc(x.telefone)}` : 'sem telefone';
   fi.innerHTML = `<h2>${esc(x.razao_social)}</h2>
-   <div class="meta">${esc(x.cnpj)} · ${esc(x.municipio||'')}/${esc(x.uf||'')}${x.segmento?' · '+esc(x.segmento):''}${x.grupo_economico && !/sem grupo/i.test(x.grupo_economico)?' · '+esc(x.grupo_economico):''}<br>📞 ${tel}${x.email?' · '+esc(x.email):''}${x.endereco?'<br>'+esc(x.endereco)+(x.bairro?', '+esc(x.bairro):''):''}${x.situacao_cadastro && x.situacao_cadastro!=='ATIVO'?`<br><span class="tag p">Cadastro ${esc(x.situacao_cadastro)}</span>`:''}</div>
+   <div class="meta">${esc(x.cnpj)} · ${esc(x.municipio||'')}/${esc(x.uf||'')}${x.segmento?' · '+esc(x.segmento):''}${x.grupo_economico && !/sem grupo/i.test(x.grupo_economico)?' · '+esc(x.grupo_economico):''}${x.email?'<br>✉️ '+esc(x.email):''}${x.endereco?'<br>'+esc(x.endereco)+(x.bairro?', '+esc(x.bairro):''):''}${x.situacao_cadastro && x.situacao_cadastro!=='ATIVO'?`<br><span class="tag p">Cadastro ${esc(x.situacao_cadastro)}</span>`:''}</div>
+   ${cttLinha(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], ehGrupo(x) ? x.grupo_economico : null)}
    ${pros ? `<div class="grid4"><div class="mini"><b>${x.vmm_mercado?nf(x.vmm_mercado)+' m³':'–'}</b><span>Compra no mercado/mês</span></div><div class="mini"><b>${esc(x.etapa_funil||'prospect')}</b><span>Etapa</span></div></div>
      <label style="font-size:13px;color:var(--mut)">Mudar etapa: <select id="etapa">${['prospect','contatado','cotado','cliente','descartado'].map(e=>`<option ${e===x.etapa_funil?'selected':''}>${e}</option>`).join('')}</select></label>` :
    `<div class="grid4"><div class="mini"><b>${nf((x.volume_12m||0)/12)} m³</b><span>Média/mês (12m)</span></div><div class="mini"><b>${nf(x.volume_mes)} m³</b><span>No mês</span></div>
@@ -509,6 +580,7 @@ async function abrirFicha(id) {
    ${vend.length ? `<h3>Últimas compras</h3><div class="scroll"><table><tr><th>Data</th><th>Produto</th><th class="r">m³</th><th class="r">R$/L</th><th class="r">Prazo</th><th>Frete</th></tr>${vend.map(v=>`<tr><td>${dt(v.data_emissao)}</td><td>${esc(v.produto)}</td><td class="r">${nf(v.volume_m3,1)}</td><td class="r">${nf(v.preco_litro,4)}</td><td class="r">${v.prazo_dias ?? '–'}d</td><td>${v.frete_modalidade==='C'?'CIF':v.frete_modalidade==='F'?'FOB':esc(v.frete_modalidade||'')}</td></tr>`).join('')}</table></div>` : ''}`;
   if ($('#etapa')) $('#etapa').onchange = async e => { try { await api(`clientes?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({etapa_funil:e.target.value})}); x.etapa_funil = e.target.value; toast('Etapa atualizada'); desenharLista(); } catch(er) { toast('Erro: ' + er.message); } };
   ligarFormContato(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], () => { if (S.rows.find(r => r.id === id)) abrirFicha(id); });
+  ligarCtt(ehGrupo(x) ? membrosGrupo(x.grupo_economico) : [x], ehGrupo(x) ? x.grupo_economico : null, () => abrirFicha(id));
 }
 
 const PROD_NOME = {DIESEL:'Diesel', GASOLINA:'Gasolina', ETANOL:'Etanol'};
