@@ -186,6 +186,17 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .acts{white-space:nowrap}.btn.sm.ok{background:var(--ok)}.btn.sm.sec{background:#fff;color:var(--g);border:1px solid var(--line)}
 .ptab tr.rb td{background:#fff6e6}
 main.eq.ped{margin-top:16px}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}@media(max-width:1000px){.mgrid{grid-template-columns:1fr}}
+.mcard{all:unset;box-sizing:border-box;cursor:pointer;display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;transition:box-shadow .15s,border-color .15s}
+.mcard:hover,.mcard:focus-visible{border-color:var(--or);box-shadow:0 8px 22px rgba(22,34,110,.1)}.mcard:focus-visible{outline:3px solid var(--ye)}
+.mtit{background:var(--g);color:#fff;text-align:center;font:700 15px Poppins,sans-serif;padding:7px}.mwarn{background:var(--amb);color:#141c46;border-radius:6px;font:600 11px Inter,sans-serif;padding:1px 6px;margin-left:6px}
+.mtab{width:100%;border-collapse:collapse;font-size:13.5px}.mtab th,.mtab td{padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap}.mtab th{font-weight:700;color:var(--ink)}
+.mtab td:first-child{font-weight:600}.mtab td:last-child,.mtab th:last-child{font-weight:700}
+.mtab tr.mmeta td{background:#1d3a6e;color:#fff;font-weight:700}
+.mtab tr.msal td{background:#fde4e6}.mtab tr.msal td.sneg{background:#d9f2df;color:#127a3e;font-weight:700}.mtab tr.msal td.spos{color:#9b2c2c}
+.mtab tr.mpct td{color:var(--mut);font-size:12px;border-bottom:0}
+.vtag{font-style:normal;font:700 9.5px Inter,sans-serif;background:#fff1df;color:#a24c00;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle}
+.mstrip{margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -836,10 +847,11 @@ async function telaPedidos() {
       }
     }
     P.data = P.data || iso(hojeSP());
-    await carregarPed();
+    P.modo = P.modo || (['gerente_corp','gerente'].includes(S.me.perfil) ? 'geral' : 'filial');
+    await atualizarPed();
   } catch(e) { $('main.ped').innerHTML = `<div class="empty">Não foi possível abrir os pedidos: ${esc(errTxt(e))}</div>`; }
   clearInterval(P.timer);
-  P.timer = setInterval(() => { if (S.view === 'ped' && !document.querySelector('.modal') && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#fPed'))) carregarPed(); }, 30000);
+  P.timer = setInterval(() => { if (S.view === 'ped' && !document.querySelector('.modal') && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#fPed'))) atualizarPed(); }, 30000);
 }
 function hdrPed() {
   return `<header><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><h1>Pedidos do dia</h1><span class="sp"></span>
@@ -920,7 +932,7 @@ function desenharPed() {
 
   $('#app').innerHTML = hdrPed() + `<main class="eq ped">
     <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados e reservados (até 10:30). Virados vêm da cota de ontem: não descontam nada de hoje, só entram no volume que sai.</p></div>
-      <div class="bh-r"><div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
+      <div class="bh-r">${segModo()}<div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
       ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
       ${avisos}
       ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
@@ -930,6 +942,7 @@ function desenharPed() {
     <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s</p></div></div>${lista}</section>
   </main>`;
   ligarHdrPed();
+  ligarSegModo();
   document.querySelectorAll('#chFil button').forEach(b => b.onclick = async () => { P.fil = b.dataset.f; P.cli = null; await carregarPed(); });
   $('#pData').onchange = async e => { if (!e.target.value) return; P.data = e.target.value; await carregarPed(); };
   if ($('#bCota')) $('#bCota').onclick = abrirCota;
@@ -1095,6 +1108,85 @@ async function abrirPesos() {
     };
   };
   desenha(); document.body.appendChild(d);
+}
+
+/* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
+const COLS = [['GAS','GAS C'],['ETA','EHC'],['S10','S10'],['S500','S500'],['USINA','USINA']];
+const NOME_PAINEL = {'16':'Ipojuca', '17':'São Luís'};
+const veGeral = () => verTodas() || S.me.perfil === 'gerente';
+function segModo() {
+  return veGeral() ? `<div class="seg" id="segModo"><button data-m="geral" class="${P.modo==='geral'?'on':''}">Visão geral</button><button data-m="filial" class="${P.modo!=='geral'?'on':''}">Por filial</button></div>` : '';
+}
+function ligarSegModo() {
+  document.querySelectorAll('#segModo button').forEach(b => b.onclick = async () => { P.modo = b.dataset.m; await atualizarPed(); });
+}
+async function atualizarPed() { if (P.modo === 'geral') await carregarGeral(); else await carregarPed(); }
+async function carregarGeral() {
+  P.geral = await rpc('monitor_vendas', {p_data:P.data});
+  desenharGeral();
+}
+function desenharGeral() {
+  const L = P.geral?.linhas || []; const a = String(P.geral?.agora || '');
+  const fils = []; L.forEach(l => { if (!fils.find(f => f.filial === l.filial)) fils.push({filial:l.filial, nome:l.nome, ordem:l.ordem}); });
+  fils.sort((x,y) => x.ordem - y.ordem);
+  const n = v => +v || 0;
+  const tot = {meta:0, cota:0, lanc:0, vir:0}; L.forEach(l => { tot.meta += n(l.meta); tot.cota += n(l.cota); tot.lanc += n(l.lancado); tot.vir += n(l.virados); });
+  const pct = (x, y) => y ? nf(100 * x / y, 0) + '%' : '–';
+  const card = f => {
+    const cs = COLS.filter(([k]) => L.some(l => l.filial === f.filial && l.coluna === k));
+    const g = k => L.find(l => l.filial === f.filial && l.coluna === k) || {};
+    const T = k => cs.reduce((s,[c]) => s + n(g(c)[k]), 0);
+    const sal = (c, l) => { const v = c - l; return `<td class="r ${v < 0 ? 'sneg' : 'spos'}">${nf(v)}</td>`; };
+    const semCota = !cs.some(([c]) => g(c).cota != null);
+    return `<button class="mcard" data-f="${f.filial}" title="Abrir ${esc(f.nome)}">
+      <div class="mtit">${esc(NOME_PAINEL[f.filial] || f.nome)}${semCota ? ' <span class="mwarn">cota não lançada</span>' : ''}</div>
+      <table class="mtab"><thead><tr><th></th>${cs.map(([,l]) => `<th class="r">${l}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>
+      <tr class="mmeta"><td>Meta Dia Plan</td>${cs.map(([c]) => `<td class="r">${nf(g(c).meta)}</td>`).join('')}<td class="r">${nf(T('meta'))}</td></tr>
+      <tr><td>Cota/dia dispon.</td>${cs.map(([c]) => `<td class="r">${g(c).cota == null ? '–' : nf(g(c).cota)}</td>`).join('')}<td class="r">${nf(T('cota'))}</td></tr>
+      <tr><td>Lançado</td>${cs.map(([c]) => `<td class="r" title="${n(g(c).virados) ? `inclui ${nf(g(c).virados)} L virados` : ''}">${nf(n(g(c).lancado))}${n(g(c).virados) ? '<i class="vtag">V</i>' : ''}</td>`).join('')}<td class="r">${nf(T('lancado'))}</td></tr>
+      <tr class="msal"><td>Saldo cota dia</td>${cs.map(([c]) => sal(n(g(c).cota), n(g(c).lancado))).join('')}${sal(T('cota'), T('lancado'))}</tr>
+      <tr class="mpct"><td>% da meta</td>${cs.map(([c]) => `<td class="r">${pct(n(g(c).lancado), n(g(c).meta))}</td>`).join('')}<td class="r"><b>${pct(T('lancado'), T('meta'))}</b></td></tr>
+      </tbody></table></button>`;
+  };
+  $('#app').innerHTML = hdrPed() + `<main class="eq ped">
+    <section class="blk"><div class="bh"><div><h3>Monitoramento de Vendas · ${dt(P.data)}</h3>
+      <p class="sub">Lançado = pedidos confirmados + reservas válidas (até 10:30) + virados (<i class="vtag">V</i>). Saldo = disponível − lançado. Atualizado às ${esc(a.slice(11,16))}, atualiza sozinho a cada 30 s.</p></div>
+      <div class="bh-r">${segModo()}<input type="date" id="pData" value="${P.data}" aria-label="Data">${ehOp() ? '<button class="btn sm" id="bMeta">Meta Dia Plan</button>' : ''}</div></div>
+      <div class="strip mstrip">
+        <div class="st"><b>${nf(tot.meta)}</b><span>Meta dia (L)</span></div>
+        <div class="st"><b>${nf(tot.cota)}</b><span>Cota disponível</span></div>
+        <div class="st"><b>${nf(tot.lanc)}</b><span>Lançado${tot.vir ? ` · ${nf(tot.vir)} virados` : ''}</span></div>
+        <div class="st ${tot.cota - tot.lanc < 0 ? 'ok' : ''}"><b>${nf(tot.cota - tot.lanc)}</b><span>Saldo cota dia</span></div>
+        <div class="st"><b>${pct(tot.lanc, tot.meta)}</b><span>da meta do dia</span></div>
+      </div>
+      <div class="mgrid">${fils.map(card).join('') || '<div class="empty">Nenhuma filial com meta ou cota para este dia.</div>'}</div>
+    </section></main>`;
+  ligarHdrPed(); ligarSegModo();
+  $('#pData').onchange = async e => { if (!e.target.value) return; P.data = e.target.value; await atualizarPed(); };
+  if ($('#bMeta')) $('#bMeta').onclick = abrirMeta;
+  document.querySelectorAll('.mcard').forEach(b => b.onclick = async () => { if (!P.filiais.some(f => f.codigo === b.dataset.f)) return; P.fil = b.dataset.f; P.modo = 'filial'; await carregarPed(); });
+}
+async function abrirMeta() {
+  const fil = P.filiais;
+  const met = await api(`meta_dia?valido_desde=lte.${P.data}&order=valido_desde.desc&select=*`);
+  const ef = {}; met.forEach(m => { const k = m.filial + '|' + m.coluna; if (!(k in ef)) ef[k] = m; });
+  const colsF = f => COLS.filter(([k]) => k === 'USINA' ? P.terms.some(t => t.filial === f && t.coluna_painel === 'USINA') : P.terms.some(t => t.filial === f && !t.coluna_painel && t.grupos.includes(k)));
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<div class="mbox" style="width:min(860px,100%)"><h3>Meta Dia Plan</h3><p class="sub">Litros planejados para vender por dia em cada filial.</p>
+    <div class="scroll"><table class="ptab"><thead><tr><th>Filial</th>${COLS.map(([,l]) => `<th class="r">${l}</th>`).join('')}</tr></thead><tbody>
+    ${fil.map(f => { const cs = colsF(f.codigo).map(c => c[0]); return `<tr><td><b>${esc(NOME_PAINEL[f.codigo] || f.nome)}</b></td>${COLS.map(([k]) => cs.includes(k) ? `<td class="r"><input class="mi" inputmode="numeric" data-f="${f.codigo}" data-c="${k}" value="${ef[f.codigo+'|'+k] ? nf(ef[f.codigo+'|'+k].litros) : ''}"></td>` : '<td class="r mut">—</td>').join('')}</tr>`; }).join('')}
+    </tbody></table></div>
+    <label class="sub">Vale a partir de <input type="date" id="mDesde" value="${P.data}"></label>
+    <div class="mact"><button class="btn sec" id="mX">Cancelar</button><button class="btn" id="mOk">Salvar meta</button></div></div>`;
+  document.body.appendChild(d);
+  d.querySelectorAll('input.mi').forEach(i => i.oninput = () => { i.value = i.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); });
+  d.querySelector('#mX').onclick = () => d.remove();
+  d.querySelector('#mOk').onclick = async () => {
+    const desde = d.querySelector('#mDesde').value || P.data;
+    const body = [...d.querySelectorAll('input.mi')].map(i => ({filial:i.dataset.f, coluna:i.dataset.c, valido_desde:desde, litros:+(i.value || '').replace(/\D/g, '')}));
+    try { await api('meta_dia?on_conflict=filial,coluna,valido_desde', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(body)});
+      d.remove(); toast('Meta salva'); await carregarGeral(); } catch(x) { toast('Erro ao salvar: ' + errTxt(x)); }
+  };
 }
 
 /* ---------- START ---------- */
