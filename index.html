@@ -159,6 +159,33 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .sup table td{white-space:nowrap}.sup tr.click{cursor:pointer}.sup tr.click:hover{background:#f6faf9}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin:6px 0}.legend span{display:flex;align-items:center;gap:5px}
 .scroll{overflow-x:auto}
+.ptab td small,.ptab th small{display:block;font-size:11.5px;color:var(--mut);font-weight:500}
+.ptab td b.neg{color:var(--coral)}.ptab td b.zer{color:var(--amb)}.ptab .mut,.mut{color:var(--mut)}
+.pgr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:18px}@media(max-width:900px){.pgr{grid-template-columns:1fr}}
+.pclock{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.pclock span{font:600 13px Inter,sans-serif;border-radius:999px;padding:5px 12px}
+.pclock .on{background:#e3f6ea;color:#127a3e}.pclock .off{background:#eef1f9;color:var(--mut)}.pclock .warn{background:#fdecea;color:#b32a22}
+.chips .nb{background:var(--coral);color:#fff;border-radius:8px;padding:0 6px;font-size:11px}
+.ped input[type=date]{border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:500 13px Inter,sans-serif}
+.pform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:#f6f8fc;padding:14px;border-radius:12px}
+.pform .full{grid-column:1/-1}.pform label{font-size:12.5px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+.pform select,.pform input:not([type=checkbox]){border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;font-size:15px}
+.pform label.chk{flex-direction:row;align-items:center;gap:6px;margin-top:6px}
+.pbusca{position:relative}.pbusca input{width:100%}
+.pqr{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(22,34,110,.12);max-height:340px;overflow:auto}
+.pqr:empty{display:none}.pqi{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:8px 12px;cursor:pointer;font:14px Inter,sans-serif}
+.pqi:hover,.pqi:focus-visible{background:#f3f6ff}.pqi small{display:block;color:var(--mut);font-size:12px}
+.psel{background:#fff;border:1px solid var(--g2);border-radius:10px;padding:9px 12px}
+.pnovo{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:6px}
+.pvol{display:flex;flex-wrap:wrap;gap:10px}.pvol .mi{width:130px}
+.seg button:disabled{opacity:.35;cursor:not-allowed;text-decoration:line-through}
+.pact{display:flex;justify-content:flex-end;align-items:center;gap:12px}.pact .sub{color:var(--coral)}
+.stp{display:inline-block;font:700 11.5px Inter,sans-serif;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.stp.ok{background:#e3f6ea;color:#127a3e}.stp.rsv{background:#e8eeff;color:#2a5ae0}.stp.vir{background:#fff1df;color:#a24c00}.stp.aut{background:#fdecea;color:#b32a22}.stp.neg,.stp.can{background:#eef1f9;color:var(--mut)}
+.plist tr.st-A td{background:#fff8f7}.plist tr.st-X td,.plist tr.st-N td,.plist tr.st-E td{opacity:.55}
+.plist .pq{white-space:nowrap;font-size:12.5px}.plist .mot-a{color:#b32a22!important}
+.acts{white-space:nowrap}.btn.sm.ok{background:var(--ok)}.btn.sm.sec{background:#fff;color:var(--g);border:1px solid var(--line)}
+.ptab tr.rb td{background:#fff6e6}
+main.eq.ped{margin-top:16px}
 </style>
 </head>
 <body>
@@ -223,6 +250,7 @@ async function iniciar() {
   if (!todas) S.resumo = S.resumo.filter(r => S.carteiras.includes(r.carteira_codigo));
   S.cart = S.gestao ? null : S.carteiras[0];
   S.tab = S.gestao ? 'equipe' : 'hoje';
+  try { S.pedLib = (await api('filiais?liberada_equipe=eq.true&select=codigo')).length > 0; } catch(e) { S.pedLib = false; }
   await abrir();
 }
 function sair() { try { localStorage.removeItem('larcocrm_rt'); } catch(e) {} Object.assign(S, {token:null, refresh:null, user:null, me:null}); telaLogin(); }
@@ -245,7 +273,7 @@ function resumoAtual() { return S.resumo.find(r => r.carteira_codigo === S.cart)
 function render() {
   const sup = S.gestao;
   const opts = (sup ? ['<option value="">Equipe (todas)</option>'] : []).concat(S.carteiras.map(c => { const r = S.resumo.find(x => x.carteira_codigo === c) || {}; return `<option value="${esc(c)}" ${c===S.cart?'selected':''}>${esc(c)}${r.consultor_nome ? ' · ' + esc(r.consultor_nome) : ''}</option>`; })).join('');
-  const hdr = `<header><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><select id="selCart" aria-label="Carteira">${opts}</select><span class="sp"></span><span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
+  const hdr = `<header><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><select id="selCart" aria-label="Carteira">${opts}</select><span class="sp"></span>${S.pedLib || verTodas() ? '<button class="btn sec" id="bPed">📦 Pedidos do dia</button>' : ''}<span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
   if (!S.cart) { $('#app').innerHTML = hdr + telaEquipe(); ligarHeader(); ligarEquipe(); return; }
   const r = resumoAtual(); const rows = S.rows;
   const fixa = r.aceita_prospect === false;
@@ -273,6 +301,7 @@ function render() {
 }
 function ligarHeader() {
   $('#bSair').onclick = sair;
+  if ($('#bPed')) $('#bPed').onclick = () => telaPedidos();
   $('#selCart').onchange = async e => { S.cart = e.target.value || null; S.sel = null; S.tab = S.cart ? 'hoje' : 'equipe'; await abrir(); };
 }
 
@@ -775,6 +804,297 @@ async function ligarEquipe() {
     const ag = {}; mot.forEach(m => ag[m.motivo_perda] = (ag[m.motivo_perda]||0) + m.qtd); const tot = Object.values(ag).reduce((a,b)=>a+b,0);
     $('#motivos').innerHTML = tot ? Object.entries(ag).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div class="mot"><span>${MOT[k]||k}</span><div class="track"><i style="width:${100*v/tot}%;background:var(--coral)"></i></div><span class="r">${v}</span></div>`).join('') : 'Nenhuma perda registrada no mês.';
   } catch(e) { $('#motivos').textContent = 'Não foi possível carregar.'; }
+}
+
+/* ---------- PEDIDOS DO DIA ---------- */
+const GR = {GAS:'Gasolina', ETA:'Etanol', S10:'Diesel S10', S500:'Diesel S500'};
+const GORD = ['GAS','ETA','S10','S500'];
+const PRODS = [['gas','Gasolina','GAS'],['gas_ad','Gas. aditivada','GAS'],['eta','Etanol','ETA'],['s10','Diesel S10','S10'],['s10_ad','S10 aditivado','S10'],['s500','Diesel S500','S500'],['s500_ad','S500 aditivado','S500']];
+const PCURTO = {gas:'Gas', gas_ad:'Gas ad.', eta:'Etanol', s10:'S10', s10_ad:'S10 ad.', s500:'S500', s500_ad:'S500 ad.'};
+const ST = {C:['Confirmado','ok'], R:['Reservado','rsv'], V:['Virado','vir'], A:['Aguardando autorização','aut'], N:['Negado','neg'], X:['Cancelado','can'], E:['Reserva expirada','can']};
+const P = { filiais:[], terms:[], fil:null, data:null, painel:null, peds:[], users:{}, cli:null, novo:false, st:'C', timer:null, pend:[] };
+const podeLancar = () => ['supervisor','consultor','externo'].includes(S.me.perfil);
+const ehOp = () => S.me.perfil === 'supervisor';
+const verTodas = () => ['supervisor','gerente_corp'].includes(S.me.perfil);
+const errTxt = e => { try { return JSON.parse(e.message).message || e.message; } catch(x) { return e.message; } };
+
+async function telaPedidos() {
+  S.view = 'ped';
+  $('#app').innerHTML = hdrPed() + '<main class="eq ped"><div class="empty">Carregando…</div></main>';
+  ligarHdrPed();
+  try {
+    if (!P.filiais.length) {
+      P.filiais = await api(`filiais?ativa=eq.true${verTodas() ? '' : '&liberada_equipe=eq.true'}&order=ordem`);
+      if (!P.filiais.length) { $('main.ped').innerHTML = '<div class="empty">Os pedidos do dia ainda não foram liberados para a sua equipe.</div>'; return; }
+      P.terms = await api('terminais?ativo=eq.true&order=filial,ordem');
+      if (ehOp() || S.me.perfil === 'gerente_corp') { try { (await api('usuarios?select=id,nome')).forEach(u => P.users[u.id] = u.nome); } catch(e) {} }
+      if (!P.fil) {
+        const pes = await api('pesos?select=filial,carteira');
+        const mine = verTodas() ? null : new Set(S.carteiras);
+        const f = P.filiais.find(f => pes.some(p => p.filial === f.codigo && (!mine || mine.has(p.carteira))));
+        P.fil = (f || P.filiais[0]).codigo;
+      }
+    }
+    P.data = P.data || iso(hojeSP());
+    await carregarPed();
+  } catch(e) { $('main.ped').innerHTML = `<div class="empty">Não foi possível abrir os pedidos: ${esc(errTxt(e))}</div>`; }
+  clearInterval(P.timer);
+  P.timer = setInterval(() => { if (S.view === 'ped' && !document.querySelector('.modal') && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#fPed'))) carregarPed(); }, 30000);
+}
+function hdrPed() {
+  return `<header><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><h1>Pedidos do dia</h1><span class="sp"></span>
+    <button class="btn sec" id="bVolta">← Voltar ao CRM</button><span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
+}
+function ligarHdrPed() {
+  $('#bSair').onclick = () => { clearInterval(P.timer); S.view = null; sair(); };
+  $('#bVolta').onclick = () => { clearInterval(P.timer); S.view = null; render(); };
+}
+async function carregarPed() {
+  const [pn, peds] = await Promise.all([
+    rpc('painel_pedidos', {p_data:P.data, p_filial:P.fil}),
+    api(`pedidos?data=eq.${P.data}&filial=eq.${P.fil}&select=*&order=criado_em.desc`)]);
+  P.painel = pn; P.peds = peds;
+  if (ehOp()) { try { P.pend = await api('pedidos?status=eq.A&select=id,filial,data'); } catch(e) {} }
+  desenharPed();
+}
+function relogio() {
+  const a = String(P.painel?.agora || ''); const hoje = a.slice(0,10) || iso(hojeSP());
+  const min = (+a.slice(11,13)) * 60 + (+a.slice(14,16));
+  const isHoje = P.data === hoje;
+  return { hoje, min, isHoje, resAberta: isHoje && min < 630, bandAberta: P.data > hoje || (isHoje && min < 840), passado: P.data < hoje };
+}
+const gruposFil = () => GORD.filter(g => P.terms.some(t => t.filial === P.fil && t.grupos.includes(g)));
+const lin = (tipo, chave, g) => (P.painel?.linhas || []).find(l => l.tipo === tipo && l.chave === chave && l.grupo === g);
+const falta = m => m <= 0 ? '' : m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}` : `${m} min`;
+const statusEf = (p, R) => p.status === 'R' && !R.resAberta ? 'E' : p.status;
+const minhaCart = c => verTodas() || ehOp() || S.carteiras.includes(c);
+
+function desenharPed() {
+  const R = relogio(); const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
+  const ts = P.terms.filter(t => t.filial === P.fil);
+  const cel = (cota, usado, tit) => { const s = (+cota||0) - (+usado||0); return `<td class="r"><b class="${s < 0 ? 'neg' : s === 0 && +cota ? 'zer' : ''}">${nf(s)}</b><small>${tit || `de ${nf(cota)}`}</small></td>`; };
+  const pendF = {}; P.pend.forEach(p => pendF[p.filial] = (pendF[p.filial]||0) + 1);
+  const chips = P.filiais.map(f => `<button data-f="${f.codigo}" class="${f.codigo===P.fil?'on':''}">${esc(f.nome)}${pendF[f.codigo]?` <span class="nb">${pendF[f.codigo]}</span>`:''}</button>`).join('');
+  const temCota = (P.painel?.linhas || []).some(l => l.tipo === 'terminal');
+
+  const avisos = `<div class="pclock">
+    <span class="${R.resAberta ? 'on' : 'off'}">⏱ ${R.resAberta ? `Reservas abertas até 10:30 · faltam ${falta(630 - R.min)}` : 'Reservas encerradas (só até 10:30)'}</span>
+    <span class="${R.bandAberta ? 'on' : 'off'}">🏁 ${R.bandAberta ? `Reserva das bandeiras até 14:00${R.isHoje ? ` · faltam ${falta(840 - R.min)}` : ''}` : 'Reserva das bandeiras liberada para as carteiras'}</span>
+    ${ehOp() && P.pend.length ? `<span class="warn">⚠ ${P.pend.length} pedido(s) aguardando sua autorização</span>` : ''}</div>`;
+
+  const resumo = `<table class="ptab"><thead><tr><th>Produto</th><th class="r">Cota do dia</th><th class="r">Reserva bandeiras</th><th class="r">Lançado</th><th class="r">Saldo da filial</th></tr></thead><tbody>
+    ${gs.map(g => { const f = lin('filial','',g) || {}, rb = lin('reserva','',g) || {}; return `<tr><td><b>${GR[g]}</b></td><td class="r">${nf(f.cota)}</td>
+      <td class="r">${R.bandAberta && +rb.cota ? `${nf(rb.usado)} <small>de ${nf(rb.cota)}</small>` : nf(rb.usado) + (+rb.usado ? ' <small>usado</small>' : '')}</td><td class="r">${nf(f.usado)}</td>${cel(f.cota, f.usado, ' ')}</tr>`; }).join('')}</tbody></table>`;
+
+  const term = `<table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+    ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => { if (!t.grupos.includes(g)) return '<td class="r mut">—</td>'; const l = lin('terminal', String(t.id), g); return l ? cel(l.cota, l.usado) : '<td class="r mut">sem cota</td>'; }).join('')}</tr>`).join('')}</tbody></table>`;
+
+  const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort();
+  const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'Bahia (sem consultor)' : '');
+  const ctab = carts.length ? `<table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+    ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); return l && (+l.cota || +l.usado) ? cel(l.cota, l.usado) : '<td class="r mut">—</td>'; }).join('')}</tr>`).join('')}</tbody></table>`
+    : '<div class="empty">Nenhuma carteira sua tem peso nesta filial.</div>';
+
+  const podeForm = podeLancar() && (R.isHoje || (ehOp() && !R.passado));
+  const form = podeForm ? formPed(R, ts) : '';
+
+  const ord = {A:0, R:1, C:2, V:3, E:4, N:5, X:6};
+  const peds = [...P.peds].sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
+  const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
+  const acoes = p => { const s = statusEf(p, R); const b = [];
+    const dono = podeLancar() && (ehOp() || S.carteiras.includes(p.carteira)) && R.isHoje;
+    if (s === 'A' && ehOp()) b.push(`<button class="btn sm ok" data-a="aut" data-id="${p.id}">Autorizar</button><button class="btn sm sec" data-a="neg" data-id="${p.id}">Negar</button>`);
+    if ((s === 'R' || s === 'E') && dono) b.push(`<button class="btn sm" data-a="conf" data-id="${p.id}">Confirmar</button>`);
+    if (['C','R','A','E'].includes(s) && dono) b.push(`<button class="btn sm sec" data-a="canc" data-id="${p.id}">Cancelar</button>`);
+    if (s === 'C' && ehOp() && R.passado && !p.virado) b.push(`<button class="btn sm" data-a="virar" data-id="${p.id}">Virar p/ hoje</button>`);
+    if (p.virado) b.push('<small class="mut">virou para outro dia</small>');
+    return b.join(' '); };
+  const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
+    ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
+      return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
+      <td><b>${esc(p.cliente_nome)}</b>${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}
+        ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
+      <td>${esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
+      <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
+      <td class="acts">${acoes(p)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum pedido lançado nesta filial neste dia.</div>';
+
+  $('#app').innerHTML = hdrPed() + `<main class="eq ped">
+    <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados, reservados e virados.</p></div>
+      <div class="bh-r"><div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
+      ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
+      ${avisos}
+      ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
+      <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></section>
+    <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota de cada carteira = (cota da filial − reserva das bandeiras) × peso da carteira</p></div></div>${ctab}</section>
+    ${form}
+    <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s</p></div></div>${lista}</section>
+  </main>`;
+  ligarHdrPed();
+  document.querySelectorAll('#chFil button').forEach(b => b.onclick = async () => { P.fil = b.dataset.f; P.cli = null; await carregarPed(); });
+  $('#pData').onchange = async e => { if (!e.target.value) return; P.data = e.target.value; await carregarPed(); };
+  if ($('#bCota')) $('#bCota').onclick = abrirCota;
+  if ($('#bPesos')) $('#bPesos').onclick = abrirPesos;
+  if ($('#bLib')) $('#bLib').onclick = async () => { const v = !fil.liberada_equipe;
+    try { await api(`filiais?codigo=eq.${P.fil}`, {method:'PATCH', body:JSON.stringify({liberada_equipe:v})}); fil.liberada_equipe = v;
+      toast(v ? `${fil.nome} liberada: consultores e externos já podem lançar` : `${fil.nome} voltou a ficar só com você e o Gabriel`); desenharPed(); } catch(x) { toast(errTxt(x)); } };
+  document.querySelectorAll('.acts button').forEach(b => b.onclick = () => acaoPed(b.dataset.a, +b.dataset.id));
+  if (podeForm) ligarFormPed(R);
+}
+
+function formPed(R, ts) {
+  const t0 = P.tSel && ts.some(t => t.id === P.tSel) ? P.tSel : (ts[0] || {}).id;
+  const t = ts.find(x => x.id === t0) || {grupos:[]};
+  const cartOpts = (ehOp() ? [...new Set(S.resumo.map(r => r.carteira_codigo).concat(['BA']))] : S.carteiras).map(c => `<option>${esc(c)}</option>`).join('');
+  const sel = P.cli ? `<div class="psel"><b>${esc(P.cli.nome)}</b> <small>${esc(P.cli.det || '')}</small>${P.cli.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''} <button type="button" class="lnk" id="bTroca">trocar</button></div>` : '';
+  return `<section class="blk"><div class="bh"><div><h3>Lançar pedido</h3><p class="sub">Digite o nome do posto, do grupo ou o CNPJ</p></div></div>
+  <form id="fPed" class="pform" autocomplete="off">
+    <div class="full">${sel || `<div class="pbusca"><input id="pq" placeholder="Ex.: expo, maria farinha, 12.345.678…" ${P.novo ? 'disabled' : ''}><div id="pqr" class="pqr"></div></div>
+      <label class="chk"><input type="checkbox" id="pNovo" ${P.novo ? 'checked' : ''}> Cliente não está no cadastro</label>
+      ${P.novo ? `<div class="pnovo"><input id="pNome" placeholder="Nome do cliente"><select id="pCart">${cartOpts}</select></div>` : ''}`}</div>
+    <label>Terminal<select id="pTerm">${ts.map(x => `<option value="${x.id}" ${x.id===t0?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label>Tipo<div class="seg" id="pSt"><button type="button" data-s="C" class="${P.st==='C'||!R.resAberta?'on':''}">Confirmado</button><button type="button" data-s="R" class="${P.st==='R'&&R.resAberta?'on':''}" ${R.resAberta?'':'disabled title="Reservas só até 10:30"'}>Reservado</button></div></label>
+    <div class="full pvol">${PRODS.filter(([,,g]) => t.grupos.includes(g)).map(([k,l]) => `<label>${l}<input class="mi" inputmode="numeric" data-k="${k}" placeholder="0"></label>`).join('')}</div>
+    <label class="full">Observação<input id="pObs" maxlength="200" placeholder="opcional"></label>
+    <div class="full pact"><span id="pMsg" class="sub"></span><button class="btn" id="bLanca">Lançar pedido</button></div>
+  </form></section>`;
+}
+function ligarFormPed(R) {
+  const f = $('#fPed'); if (!f) return;
+  $('#pTerm').onchange = e => { P.tSel = +e.target.value; guardar(); desenharPed(); };
+  document.querySelectorAll('#pSt button').forEach(b => b.onclick = () => { if (b.disabled) return; P.st = b.dataset.s; document.querySelectorAll('#pSt button').forEach(x => x.classList.toggle('on', x === b)); });
+  if ($('#bTroca')) $('#bTroca').onclick = () => { P.cli = null; desenharPed(); setTimeout(() => $('#pq') && $('#pq').focus(), 0); };
+  if ($('#pNovo')) $('#pNovo').onchange = e => { P.novo = e.target.checked; P.cli = null; desenharPed(); };
+  if ($('#pq')) { let tm; $('#pq').oninput = e => { clearTimeout(tm); const q = e.target.value; tm = setTimeout(() => buscarCli(q), 300); }; }
+  document.querySelectorAll('.pvol input').forEach(i => i.oninput = () => { i.value = i.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); });
+  if (P.rasc) { document.querySelectorAll('.pvol input').forEach(i => { if (P.rasc[i.dataset.k]) i.value = P.rasc[i.dataset.k]; }); if ($('#pObs')) $('#pObs').value = P.rasc.obs || ''; P.rasc = null; }
+  f.onsubmit = async e => { e.preventDefault(); await lancarPed(R); };
+}
+function guardar() { const r = {}; document.querySelectorAll('.pvol input').forEach(i => r[i.dataset.k] = i.value); r.obs = $('#pObs') ? $('#pObs').value : ''; P.rasc = r; }
+async function buscarCli(q) {
+  const box = $('#pqr'); if (!box) return;
+  q = q.replace(/[(),.*%"'\\:]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  const dig = q.replace(/\D/g, '');
+  const e = encodeURIComponent(`*${q}*`);
+  box.innerHTML = '<div class="pqi mut">Buscando…</div>';
+  try {
+    const flt = `or=(nome_fantasia.ilike.${e},razao_social.ilike.${e}${dig.length >= 4 ? `,cnpj.like.*${dig}*` : ''})`;
+    const [cs, gs] = await Promise.all([
+      api(`clientes?${flt}&carteira_codigo=not.is.null&select=id,nome_fantasia,razao_social,municipio,uf,carteira_codigo,bandeira,situacao,grupo_economico&order=razao_social&limit=25`),
+      api(`clientes?grupo_economico=ilike.${e}&carteira_codigo=not.is.null&select=grupo_economico,carteira_codigo,bandeira&limit=2000`)]);
+    const ag = {}; gs.forEach(c => { const k = c.grupo_economico + '|' + c.carteira_codigo; (ag[k] = ag[k] || {grupo:c.grupo_economico, carteira:c.carteira_codigo, n:0, band:false}).n++; if (c.bandeira === 'LARCO') ag[k].band = true; });
+    const grp = Object.values(ag).filter(g => g.n >= 2).sort((a,b) => b.n - a.n).slice(0, 8);
+    P.res = {grp, cs};
+    box.innerHTML = (grp.map((g,i) => `<button type="button" class="pqi" data-g="${i}"><b>${esc(g.grupo)}</b> <span class="tag d">grupo · ${g.n} postos</span>${g.band ? ' <span class="tag c pb">bandeira</span>' : ''}<small>${esc(g.carteira)}</small></button>`).join('')
+      + cs.map((c,i) => `<button type="button" class="pqi" data-c="${i}"><b>${esc(c.nome_fantasia || c.razao_social)}</b>${c.bandeira === 'LARCO' ? ' <span class="tag c pb">bandeira</span>' : ''}${c.situacao === 'prospect' ? ' <span class="tag p">prospect</span>' : ''}<small>${esc(c.razao_social)} · ${esc(c.municipio || '')}/${esc(c.uf || '')} · ${esc(c.carteira_codigo)}</small></button>`).join(''))
+      || '<div class="pqi mut">Nada encontrado. Se for cliente novo, marque "Cliente não está no cadastro".</div>';
+    box.querySelectorAll('button.pqi').forEach(b => b.onclick = () => {
+      guardar();
+      if (b.dataset.g != null) { const g = P.res.grp[+b.dataset.g]; P.cli = {tipo:'grp', grupo:g.grupo, carteira:g.carteira, nome:g.grupo, det:`grupo · ${g.n} postos · ${g.carteira}`, bandeira:g.band}; }
+      else { const c = P.res.cs[+b.dataset.c]; P.cli = {tipo:'cli', id:c.id, carteira:c.carteira_codigo, nome:c.nome_fantasia || c.razao_social, det:`${c.municipio || ''}/${c.uf || ''} · ${c.carteira_codigo}`, bandeira:c.bandeira === 'LARCO'}; }
+      desenharPed();
+    });
+  } catch(x) { box.innerHTML = `<div class="pqi mut">Erro na busca: ${esc(errTxt(x))}</div>`; }
+}
+async function lancarPed(R) {
+  const msg = $('#pMsg'); const body = {data:P.data, filial:P.fil, terminal_id:+$('#pTerm').value, status: R.resAberta ? P.st : 'C', observacao: ($('#pObs').value || '').trim() || null};
+  let tot = 0; document.querySelectorAll('.pvol input').forEach(i => { const v = +(i.value || '').replace(/\D/g, ''); body[i.dataset.k] = v; tot += v; });
+  if (P.novo) { const n = ($('#pNome').value || '').trim(); if (!n) { msg.textContent = 'Informe o nome do cliente.'; return; } body.cliente_nome = n; body.carteira = $('#pCart').value; }
+  else if (!P.cli) { msg.textContent = 'Escolha o cliente ou o grupo.'; return; }
+  else if (P.cli.tipo === 'grp') { body.grupo_economico = P.cli.grupo; body.carteira = P.cli.carteira; body.cliente_nome = P.cli.grupo; }
+  else { body.cliente_id = P.cli.id; body.carteira = P.cli.carteira; body.cliente_nome = P.cli.nome; }
+  if (!tot) { msg.textContent = 'Informe o volume em litros.'; return; }
+  $('#bLanca').disabled = true; msg.textContent = 'Lançando…';
+  try {
+    const r = await api('pedidos?select=status,motivo_autorizacao', {method:'POST', headers:{Prefer:'return=representation'}, body:JSON.stringify(body)});
+    const s = r && r[0] ? r[0].status : body.status;
+    P.cli = null; P.novo = false; P.rasc = null;
+    if (s === 'A') toast('Sem saldo: pedido enviado para autorização de Hugo/Gabriel. ' + (r[0].motivo_autorizacao || ''));
+    else toast(s === 'R' ? 'Reserva lançada (vale até 10:30)' : 'Pedido lançado');
+    await carregarPed();
+  } catch(x) { msg.textContent = errTxt(x); $('#bLanca').disabled = false; }
+}
+async function acaoPed(a, id) {
+  const p = P.peds.find(x => x.id === id); if (!p) return;
+  try {
+    if (a === 'aut') await api(`pedidos?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({status:p.status_pedido || 'C'})});
+    if (a === 'neg') await api(`pedidos?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({status:'N'})});
+    if (a === 'canc') await api(`pedidos?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({status:'X'})});
+    if (a === 'conf') { const r = await api(`pedidos?id=eq.${id}&select=status,motivo_autorizacao`, {method:'PATCH', headers:{Prefer:'return=representation'}, body:JSON.stringify({status:'C'})});
+      if (r && r[0] && r[0].status === 'A') toast('Sem saldo para confirmar: foi para autorização. ' + (r[0].motivo_autorizacao || '')); }
+    if (a === 'virar') { await rpc('virar_pedido', {p_id:id, p_para:relogio().hoje}); toast('Pedido virado para hoje'); }
+    if (['aut','neg','canc'].includes(a)) toast({aut:'Pedido autorizado', neg:'Pedido negado', canc:'Pedido cancelado'}[a]);
+    await carregarPed();
+  } catch(x) { toast(errTxt(x)); }
+}
+
+async function abrirCota() {
+  const ts = P.terms.filter(t => t.filial === P.fil); const gs = gruposFil(); const ids = ts.map(t => t.id).join(',');
+  const fil = P.filiais.find(f => f.codigo === P.fil);
+  let cot = await api(`cota_dia?data=eq.${P.data}&terminal_id=in.(${ids})&select=*`); let origem = '';
+  if (!cot.length) { const u = await api(`cota_dia?terminal_id=in.(${ids})&data=lt.${P.data}&order=data.desc&limit=1&select=data`);
+    if (u.length) { cot = await api(`cota_dia?data=eq.${u[0].data}&terminal_id=in.(${ids})&select=*`); origem = `Valores copiados de ${dt(u[0].data)}. Confira antes de salvar.`; } }
+  const res = await api(`reserva_bandeira?data=eq.${P.data}&filial=eq.${P.fil}&select=*`);
+  let sug = []; try { sug = await rpc('sugestao_reserva', {p_data:P.data, p_filial:P.fil}); } catch(e) {}
+  const dsem = new Date(P.data + 'T12:00:00').toLocaleDateString('pt-BR', {weekday:'long'});
+  const vC = (t,g) => { const c = cot.find(x => x.terminal_id === t && x.grupo === g); return c ? nf(c.litros) : ''; };
+  const vR = g => { const r = res.find(x => x.grupo === g); const s = sug.find(x => x.grupo === g); return r ? nf(r.litros) : s ? nf(s.litros) : ''; };
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<div class="mbox" style="width:min(820px,100%)"><h3>Cota da manhã · ${esc(fil.nome)} · ${dt(P.data)}</h3><p class="sub">Litros disponíveis por terminal. ${esc(origem)}</p>
+    <div class="scroll"><table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+    ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => t.grupos.includes(g) ? `<td class="r"><input class="mi" inputmode="numeric" data-t="${t.id}" data-g="${g}" value="${vC(t.id,g)}"></td>` : '<td class="r mut">—</td>').join('')}</tr>`).join('')}
+    <tr class="rb"><td><b>Reserva bandeiras Larco</b><small>vale até 14:00</small></td>${gs.map(g => { const s = sug.find(x => x.grupo === g); return `<td class="r"><input class="mi" inputmode="numeric" data-r="${g}" value="${vR(g)}"><small>sugestão ${s ? nf(s.litros) : '–'}</small></td>`; }).join('')}</tr>
+    </tbody></table></div>
+    <p class="sub">A sugestão da reserva é a média do que as bandeiras Larco faturaram nas últimas 8 ${esc(dsem)}s nesta filial.</p>
+    <div class="mact"><button class="btn sec" id="cX">Cancelar</button><button class="btn" id="cOk">Salvar e liberar cota</button></div></div>`;
+  document.body.appendChild(d);
+  d.querySelectorAll('input.mi').forEach(i => i.oninput = () => { i.value = i.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); });
+  d.querySelector('#cX').onclick = () => d.remove();
+  d.querySelector('#cOk').onclick = async () => {
+    const num = v => +(v || '').replace(/\D/g, '');
+    const bc = [...d.querySelectorAll('input[data-t]')].map(i => ({data:P.data, terminal_id:+i.dataset.t, grupo:i.dataset.g, litros:num(i.value)}));
+    const br = [...d.querySelectorAll('input[data-r]')].map(i => { const s = sug.find(x => x.grupo === i.dataset.r); return {data:P.data, filial:P.fil, grupo:i.dataset.r, litros:num(i.value), sugerido: s ? s.litros : null}; });
+    try {
+      await api('cota_dia?on_conflict=data,terminal_id,grupo', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(bc)});
+      await api('reserva_bandeira?on_conflict=data,filial,grupo', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(br)});
+      d.remove(); toast('Cota salva e liberada'); await carregarPed();
+    } catch(x) { toast('Erro ao salvar: ' + errTxt(x)); }
+  };
+}
+
+async function abrirPesos() {
+  const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil);
+  const pes = await api(`pesos?filial=eq.${P.fil}&valido_desde=lte.${P.data}&order=valido_desde.desc&select=*`);
+  const ef = {}; pes.forEach(p => { const k = p.carteira + '|' + p.grupo; if (!(k in ef)) ef[k] = p; });
+  let carts = [...new Set(Object.values(ef).filter(p => +p.peso > 0).map(p => p.carteira))].sort();
+  const todas = [...new Set(S.resumo.map(r => r.carteira_codigo).concat(['BA']))].sort();
+  const d = document.createElement('div'); d.className = 'modal';
+  const linha = c => `<tr data-c="${esc(c)}"><td><b>${esc(c)}</b></td>${gs.map(g => { const p = ef[c + '|' + g]; return `<td class="r"><input class="mi pp" inputmode="decimal" data-g="${g}" value="${p && +p.peso ? String(+(p.peso * 100).toFixed(2)).replace('.', ',') : ''}"> %</td>`; }).join('')}</tr>`;
+  const desenha = () => {
+    d.innerHTML = `<div class="mbox" style="width:min(820px,100%)"><h3>Pesos das carteiras · ${esc(fil.nome)}</h3>
+      <p class="sub">Quanto cada carteira leva da cota da filial, por produto. Normalmente muda 1 vez no mês, junto com a meta.</p>
+      <div class="scroll"><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody id="pb">${carts.map(linha).join('')}</tbody>
+      <tfoot><tr><td><b>Total</b></td>${gs.map(g => `<td class="r"><b id="t_${g}">–</b></td>`).join('')}</tr></tfoot></table></div>
+      <div class="bh-r" style="margin-top:8px"><select id="addC"><option value="">+ incluir carteira</option>${todas.filter(c => !carts.includes(c)).map(c => `<option>${esc(c)}</option>`).join('')}</select>
+      <label class="sub">Vale a partir de <input type="date" id="pDesde" value="${P.data}"></label></div>
+      <p class="sub" id="pAviso">Pedidos de dias anteriores não mudam. Para tirar uma carteira, zere os pesos dela.</p>
+      <div class="mact"><button class="btn sec" id="pX">Cancelar</button><button class="btn" id="pOk">Salvar pesos</button></div></div>`;
+    const soma = () => { let ok = true; gs.forEach(g => { const s = [...d.querySelectorAll(`input.pp[data-g="${g}"]`)].reduce((a,i) => a + (+(i.value || '0').replace(',', '.') || 0), 0);
+      const el = d.querySelector('#t_' + g); el.textContent = nf(s, 1) + '%'; const bom = Math.abs(s - 100) < 0.05 || s === 0; el.style.color = bom ? 'var(--ok)' : 'var(--coral)'; if (!bom) ok = false; });
+      d.querySelector('#pAviso').innerHTML = ok ? 'Pedidos de dias anteriores não mudam. Para tirar uma carteira, zere os pesos dela.' : '<b style="color:var(--coral)">A soma de algum produto não fecha 100%.</b> Você pode salvar mesmo assim, mas a cota distribuída não vai bater com a da filial.'; };
+    d.querySelectorAll('input.pp').forEach(i => i.oninput = soma); soma();
+    d.querySelector('#addC').onchange = e => { const c = e.target.value; if (!c) return; const vals = {}; d.querySelectorAll('#pb tr').forEach(tr => tr.querySelectorAll('input.pp').forEach(i => vals[tr.dataset.c + '|' + i.dataset.g] = i.value));
+      carts.push(c); desenha(); d.querySelectorAll('#pb tr').forEach(tr => tr.querySelectorAll('input.pp').forEach(i => { const k = tr.dataset.c + '|' + i.dataset.g; if (k in vals) i.value = vals[k]; })); soma(); };
+    d.querySelector('#pX').onclick = () => d.remove();
+    d.querySelector('#pOk').onclick = async () => {
+      const desde = d.querySelector('#pDesde').value || P.data; const body = [];
+      d.querySelectorAll('#pb tr').forEach(tr => tr.querySelectorAll('input.pp').forEach(i => { const v = +(i.value || '0').replace(',', '.') || 0; const old = ef[tr.dataset.c + '|' + i.dataset.g];
+        if (v > 0 || (old && +old.peso > 0)) body.push({filial:P.fil, carteira:tr.dataset.c, grupo:i.dataset.g, valido_desde:desde, peso:Math.round(v * 100) / 10000}); }));
+      try { await api('pesos?on_conflict=filial,carteira,grupo,valido_desde', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(body)});
+        d.remove(); toast('Pesos salvos'); await carregarPed(); } catch(x) { toast('Erro ao salvar: ' + errTxt(x)); }
+    };
+  };
+  desenha(); document.body.appendChild(d);
 }
 
 /* ---------- START ---------- */
