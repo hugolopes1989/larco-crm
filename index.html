@@ -174,6 +174,8 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .pqr{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(22,34,110,.12);max-height:340px;overflow:auto}
 .pqr:empty{display:none}.pqi{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:8px 12px;cursor:pointer;font:14px Inter,sans-serif}
 .pqi:hover,.pqi:focus-visible{background:#f3f6ff}.pqi small{display:block;color:var(--mut);font-size:12px}
+.tag.out{background:#fff1df;color:#a24c00;font-weight:700}
+.palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 .psel{background:#fff;border:1px solid var(--g2);border-radius:10px;padding:9px 12px}
 .pnovo{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:6px}
 .pvol{display:flex;flex-wrap:wrap;gap:10px}.pvol .mi{width:130px}
@@ -884,6 +886,8 @@ const lin = (tipo, chave, g) => (P.painel?.linhas || []).find(l => l.tipo === ti
 const falta = m => m <= 0 ? '' : m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}` : `${m} min`;
 const statusEf = (p, R) => p.status === 'R' && !R.resAberta ? 'E' : p.status;
 const minhaCart = c => verTodas() || ehOp() || S.carteiras.includes(c);
+const outraCart = c => !ehOp() && !S.carteiras.includes(c);
+const tagOutra = (c, cons) => outraCart(c) ? ` <span class="tag out">⚠ carteira ${esc(c)}${cons ? ' · ' + esc(cons) : ''}</span>` : '';
 
 function desenharPed() {
   const R = relogio(); const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
@@ -929,7 +933,7 @@ function desenharPed() {
   const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
     ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
       return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
-      <td><b>${esc(p.cliente_nome)}</b>${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}
+      <td><b>${esc(p.cliente_nome)}</b>${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
         ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
       <td>${esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
       <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
@@ -963,7 +967,7 @@ function formPed(R, ts) {
   const t0 = P.tSel && ts.some(t => t.id === P.tSel) ? P.tSel : (ts[0] || {}).id;
   const t = ts.find(x => x.id === t0) || {grupos:[]};
   const cartOpts = (ehOp() ? [...new Set(S.resumo.map(r => r.carteira_codigo).concat(['BA']))] : S.carteiras).map(c => `<option>${esc(c)}</option>`).join('');
-  const sel = P.cli ? `<div class="psel"><b>${esc(P.cli.nome)}</b> <small>${esc(P.cli.det || '')}</small>${P.cli.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''} <button type="button" class="lnk" id="bTroca">trocar</button></div>` : '';
+  const sel = P.cli ? `<div class="psel"><b>${esc(P.cli.nome)}</b> <small>${esc(P.cli.det || '')}</small>${P.cli.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''} <button type="button" class="lnk" id="bTroca">trocar</button></div>${P.cli && outraCart(P.cli.carteira) ? `<div class="palerta">⚠ Este cliente pertence à carteira <b>${esc(P.cli.carteira)}</b>${P.cli.cons ? ` (${esc(P.cli.cons)})` : ''}, não à sua. O pedido será lançado na sua carteira ${S.carteiras.length > 1 ? `<select id="pMinha">${S.carteiras.map(c => `<option>${esc(c)}</option>`).join('')}</select>` : `<b>${esc(S.carteiras[0] || '')}</b>`} e ficará marcado como cliente da ${esc(P.cli.carteira)} para o supervisor.</div>` : ''}` : '';
   return `<section class="blk"><div class="bh"><div><h3>Lançar pedido</h3><p class="sub">Digite o nome do posto, do grupo ou o CNPJ</p></div></div>
   <form id="fPed" class="pform" autocomplete="off">
     <div class="full">${sel || `<div class="pbusca"><input id="pq" placeholder="Ex.: expo, maria farinha, 12.345.678…" ${P.novo ? 'disabled' : ''}><div id="pqr" class="pqr"></div></div>
@@ -996,20 +1000,16 @@ async function buscarCli(q) {
   const e = encodeURIComponent(`*${q}*`);
   box.innerHTML = '<div class="pqi mut">Buscando…</div>';
   try {
-    const flt = `or=(nome_fantasia.ilike.${e},razao_social.ilike.${e}${dig.length >= 4 ? `,cnpj.like.*${dig}*` : ''})`;
-    const [cs, gs] = await Promise.all([
-      api(`clientes?${flt}&carteira_codigo=not.is.null&select=id,nome_fantasia,razao_social,municipio,uf,carteira_codigo,bandeira,situacao,grupo_economico&order=razao_social&limit=25`),
-      api(`clientes?grupo_economico=ilike.${e}&carteira_codigo=not.is.null&select=grupo_economico,carteira_codigo,bandeira&limit=2000`)]);
-    const ag = {}; gs.forEach(c => { const k = c.grupo_economico + '|' + c.carteira_codigo; (ag[k] = ag[k] || {grupo:c.grupo_economico, carteira:c.carteira_codigo, n:0, band:false}).n++; if (c.bandeira === 'LARCO') ag[k].band = true; });
-    const grp = Object.values(ag).filter(g => g.n >= 2).sort((a,b) => b.n - a.n).slice(0, 8);
+    const [cs, gr] = await Promise.all([rpc('buscar_clientes_pedido', {p_q:q}), rpc('buscar_grupos_pedido', {p_q:q})]);
+    const grp = gr.map(g => ({grupo:g.grupo, carteira:g.carteira, consultor:g.consultor, n:g.postos, band:g.bandeira}));
     P.res = {grp, cs};
-    box.innerHTML = (grp.map((g,i) => `<button type="button" class="pqi" data-g="${i}"><b>${esc(g.grupo)}</b> <span class="tag d">grupo · ${g.n} postos</span>${g.band ? ' <span class="tag c pb">bandeira</span>' : ''}<small>${esc(g.carteira)}</small></button>`).join('')
-      + cs.map((c,i) => `<button type="button" class="pqi" data-c="${i}"><b>${esc(c.nome_fantasia || c.razao_social)}</b>${c.bandeira === 'LARCO' ? ' <span class="tag c pb">bandeira</span>' : ''}${c.situacao === 'prospect' ? ' <span class="tag p">prospect</span>' : ''}<small>${esc(c.razao_social)} · ${esc(c.municipio || '')}/${esc(c.uf || '')} · ${esc(c.carteira_codigo)}</small></button>`).join(''))
+    box.innerHTML = (grp.map((g,i) => `<button type="button" class="pqi" data-g="${i}"><b>${esc(g.grupo)}</b> <span class="tag d">grupo · ${g.n} postos</span>${g.band ? ' <span class="tag c pb">bandeira</span>' : ''}${tagOutra(g.carteira, g.consultor)}<small>${esc(g.carteira)}${g.consultor ? ' · ' + esc(g.consultor) : ''}</small></button>`).join('')
+      + cs.map((c,i) => `<button type="button" class="pqi" data-c="${i}"><b>${esc(c.nome_fantasia || c.razao_social)}</b>${c.bandeira === 'LARCO' ? ' <span class="tag c pb">bandeira</span>' : ''}${c.situacao === 'prospect' ? ' <span class="tag p">prospect</span>' : ''}${tagOutra(c.carteira_codigo, c.consultor)}<small>${esc(c.razao_social)} · ${esc(c.municipio || '')}/${esc(c.uf || '')} · ${esc(c.carteira_codigo)}</small></button>`).join(''))
       || '<div class="pqi mut">Nada encontrado. Se for cliente novo, marque "Cliente não está no cadastro".</div>';
     box.querySelectorAll('button.pqi').forEach(b => b.onclick = () => {
       guardar();
-      if (b.dataset.g != null) { const g = P.res.grp[+b.dataset.g]; P.cli = {tipo:'grp', grupo:g.grupo, carteira:g.carteira, nome:g.grupo, det:`grupo · ${g.n} postos · ${g.carteira}`, bandeira:g.band}; }
-      else { const c = P.res.cs[+b.dataset.c]; P.cli = {tipo:'cli', id:c.id, carteira:c.carteira_codigo, nome:c.nome_fantasia || c.razao_social, det:`${c.municipio || ''}/${c.uf || ''} · ${c.carteira_codigo}`, bandeira:c.bandeira === 'LARCO'}; }
+      if (b.dataset.g != null) { const g = P.res.grp[+b.dataset.g]; P.cli = {tipo:'grp', grupo:g.grupo, carteira:g.carteira, cons:g.consultor, nome:g.grupo, det:`grupo · ${g.n} postos · ${g.carteira}`, bandeira:g.band}; }
+      else { const c = P.res.cs[+b.dataset.c]; P.cli = {tipo:'cli', id:c.id, carteira:c.carteira_codigo, cons:c.consultor, nome:c.nome_fantasia || c.razao_social, det:`${c.municipio || ''}/${c.uf || ''} · ${c.carteira_codigo}`, bandeira:c.bandeira === 'LARCO'}; }
       desenharPed();
     });
   } catch(x) { box.innerHTML = `<div class="pqi mut">Erro na busca: ${esc(errTxt(x))}</div>`; }
@@ -1021,6 +1021,7 @@ async function lancarPed(R) {
   else if (!P.cli) { msg.textContent = 'Escolha o cliente ou o grupo.'; return; }
   else if (P.cli.tipo === 'grp') { body.grupo_economico = P.cli.grupo; body.carteira = P.cli.carteira; body.cliente_nome = P.cli.grupo; }
   else { body.cliente_id = P.cli.id; body.carteira = P.cli.carteira; body.cliente_nome = P.cli.nome; }
+  if (P.cli && outraCart(P.cli.carteira)) { body.carteira_cliente = P.cli.carteira; body.carteira = $('#pMinha') ? $('#pMinha').value : S.carteiras[0]; }
   if (!tot) { msg.textContent = 'Informe o volume em litros.'; return; }
   $('#bLanca').disabled = true; msg.textContent = 'Lançando…';
   try {
