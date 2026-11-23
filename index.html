@@ -160,8 +160,8 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin:6px 0}.legend span{display:flex;align-items:center;gap:5px}
 .scroll{overflow-x:auto}
 .ptab td small,.ptab th small{display:block;font-size:11.5px;color:var(--mut);font-weight:500}
-.ptab td b.neg{color:var(--coral)}.ptab td b.zer{color:var(--amb)}.ptab .mut,.mut{color:var(--mut)}
-.pgr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:18px}@media(max-width:900px){.pgr{grid-template-columns:1fr}}
+.ptab td b.neg{color:var(--coral)}.ptab td b.avn{color:#127a3e}.ptab td b.zer{color:var(--amb)}.ptab .mut,.mut{color:var(--mut)}
+.pgr{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}.pgr>div{overflow-x:auto}
 .pclock{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.pclock span{font:600 13px Inter,sans-serif;border-radius:999px;padding:5px 12px}
 .pclock .on{background:#e3f6ea;color:#127a3e}.pclock .off{background:#eef1f9;color:var(--mut)}.pclock .warn{background:#fdecea;color:#b32a22}
 .chips .nb{background:var(--coral);color:#fff;border-radius:8px;padding:0 6px;font-size:11px}
@@ -878,13 +878,13 @@ function desenharPed() {
   const temCota = (P.painel?.linhas || []).some(l => l.tipo === 'terminal');
 
   const avisos = `<div class="pclock">
-    <span class="${R.resAberta ? 'on' : 'off'}">⏱ ${R.resAberta ? `Reservas abertas até 10:30 · faltam ${falta(630 - R.min)}` : 'Reservas encerradas (só até 10:30)'}</span>
+    <span class="${R.resAberta ? 'on' : 'off'}">⏱ ${R.resAberta ? `Reservas abertas até 10:30 · faltam ${falta(630 - R.min)}` : (R.isHoje || R.passado ? 'Reservas encerradas · cotas abertas: pode avançar até o saldo livre da filial' : 'Reservas até 10:30')}</span>
     <span class="${R.bandAberta ? 'on' : 'off'}">🏁 ${R.bandAberta ? `Reserva das bandeiras até 14:00${R.isHoje ? ` · faltam ${falta(840 - R.min)}` : ''}` : 'Reserva das bandeiras liberada para as carteiras'}</span>
     ${ehOp() && P.pend.length ? `<span class="warn">⚠ ${P.pend.length} pedido(s) aguardando sua autorização</span>` : ''}</div>`;
 
-  const resumo = `<table class="ptab"><thead><tr><th>Produto</th><th class="r">Cota do dia</th><th class="r">Reserva bandeiras</th><th class="r">Lançado</th><th class="r">Saldo da filial</th></tr></thead><tbody>
-    ${gs.map(g => { const f = lin('filial','',g) || {}, rb = lin('reserva','',g) || {}; return `<tr><td><b>${GR[g]}</b></td><td class="r">${nf(f.cota)}</td>
-      <td class="r">${R.bandAberta && +rb.cota ? `${nf(rb.usado)} <small>de ${nf(rb.cota)}</small>` : nf(rb.usado) + (+rb.usado ? ' <small>usado</small>' : '')}</td><td class="r">${nf(f.usado)}</td>${cel(f.cota, f.usado, ' ')}</tr>`; }).join('')}</tbody></table>`;
+  const resumo = `<table class="ptab"><thead><tr><th>Produto</th><th class="r">Cota do dia</th><th class="r">Reserva bandeiras</th><th class="r">Lançado</th><th class="r">Saldo da filial</th><th class="r">Virados de ontem</th><th class="r">Sai hoje</th></tr></thead><tbody>
+    ${gs.map(g => { const f = lin('filial','',g) || {}, rb = lin('reserva','',g) || {}, vr = lin('virado','',g) || {}; return `<tr><td><b>${GR[g]}</b></td><td class="r">${nf(f.cota)}</td>
+      <td class="r">${R.bandAberta && +rb.cota ? `${nf(rb.usado)} <small>de ${nf(rb.cota)}</small>` : nf(rb.usado) + (+rb.usado ? ' <small>usado</small>' : '')}</td><td class="r">${nf(f.usado)}</td>${cel(f.cota, f.usado, R.bandAberta && (+rb.cota||0) > (+rb.usado||0) ? `livre p/ carteiras: ${nf((+f.cota||0) - (+f.usado||0) - ((+rb.cota||0) - (+rb.usado||0)))}` : ' ')}<td class="r">${+vr.usado ? nf(vr.usado) + '<small>fora da cota</small>' : '<span class="mut">0</span>'}</td><td class="r"><b>${nf((+f.usado||0) + (+vr.usado||0))}</b></td></tr>`; }).join('')}</tbody></table>`;
 
   const term = `<table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
     ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => { if (!t.grupos.includes(g)) return '<td class="r mut">—</td>'; const l = lin('terminal', String(t.id), g); return l ? cel(l.cota, l.usado) : '<td class="r mut">sem cota</td>'; }).join('')}</tr>`).join('')}</tbody></table>`;
@@ -892,7 +892,7 @@ function desenharPed() {
   const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort();
   const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'Bahia (sem consultor)' : '');
   const ctab = carts.length ? `<table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
-    ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); return l && (+l.cota || +l.usado) ? cel(l.cota, l.usado) : '<td class="r mut">—</td>'; }).join('')}</tr>`).join('')}</tbody></table>`
+    ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '<td class="r mut">—</td>'; const sd = (+l.cota||0) - (+l.usado||0); return sd < 0 && !R.resAberta ? `<td class="r"><b class="avn">+${nf(-sd)}</b><small>avançou · cota ${nf(l.cota)}</small></td>` : cel(l.cota, l.usado); }).join('')}</tr>`).join('')}</tbody></table>`
     : '<div class="empty">Nenhuma carteira sua tem peso nesta filial.</div>';
 
   const podeForm = podeLancar() && (R.isHoje || (ehOp() && !R.passado));
@@ -919,13 +919,13 @@ function desenharPed() {
       <td class="acts">${acoes(p)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum pedido lançado nesta filial neste dia.</div>';
 
   $('#app').innerHTML = hdrPed() + `<main class="eq ped">
-    <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados, reservados e virados.</p></div>
+    <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados e reservados (até 10:30). Virados vêm da cota de ontem: não descontam nada de hoje, só entram no volume que sai.</p></div>
       <div class="bh-r"><div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
       ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
       ${avisos}
       ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
       <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></section>
-    <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota de cada carteira = (cota da filial − reserva das bandeiras) × peso da carteira</p></div></div>${ctab}</section>
+    <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota = (cota da filial − reserva das bandeiras) × peso. Até 10:30 cada carteira respeita a sua cota; depois todos podem avançar até o saldo livre da filial. Virados não descontam de nenhuma cota.</p></div></div>${ctab}</section>
     ${form}
     <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s</p></div></div>${lista}</section>
   </main>`;
