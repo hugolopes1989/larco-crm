@@ -950,7 +950,7 @@ function desenharPed() {
       ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bCob">Plantões e substituições</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
       ${avisos}
       ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
-      <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></section>
+      <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div>${resCart(R, gs)}</div></section>
     <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota = (cota da filial − reserva das bandeiras) × peso. Até 10:30 cada carteira respeita a sua cota; depois todos podem avançar até o saldo livre da filial. Virados não descontam de nenhuma cota.</p></div></div>${ctab}</section>
     ${form}
     <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s</p></div></div>${lista}</section>
@@ -1061,17 +1061,20 @@ async function abrirCota() {
   if (!cot.length) { const u = await api(`cota_dia?terminal_id=in.(${ids})&data=lt.${P.data}&order=data.desc&limit=1&select=data`);
     if (u.length) { cot = await api(`cota_dia?data=eq.${u[0].data}&terminal_id=in.(${ids})&select=*`); origem = `Valores copiados de ${dt(u[0].data)}. Confira antes de salvar.`; } }
   const res = await api(`reserva_bandeira?data=eq.${P.data}&filial=eq.${P.fil}&select=*`);
-  let sug = []; try { sug = await rpc('sugestao_reserva', {p_data:P.data, p_filial:P.fil}); } catch(e) {}
+  let sug = []; try { sug = await rpc('sugestao_reserva_carteiras', {p_data:P.data, p_filial:P.fil}); } catch(e) {}
+  const rcarts = [...new Set(sug.map(x => x.carteira).concat(res.filter(r => r.carteira !== 'GERAL').map(r => r.carteira)))].sort();
   const dsem = new Date(P.data + 'T12:00:00').toLocaleDateString('pt-BR', {weekday:'long'});
   const vC = (t,g) => { const c = cot.find(x => x.terminal_id === t && x.grupo === g); return c ? nf(c.litros) : ''; };
-  const vR = g => { const r = res.find(x => x.grupo === g); const s = sug.find(x => x.grupo === g); return r ? nf(r.litros) : s ? nf(s.litros) : ''; };
+  const vR = (c, g) => { const r = res.find(x => x.carteira === c && x.grupo === g); const s = sug.find(x => x.carteira === c && x.grupo === g); return r ? (+r.litros ? nf(r.litros) : '') : s ? nf(s.litros) : ''; };
+  const sR = (c, g) => { const s = sug.find(x => x.carteira === c && x.grupo === g); return s ? nf(s.litros) : '0'; };
   const d = document.createElement('div'); d.className = 'modal';
   d.innerHTML = `<div class="mbox" style="width:min(820px,100%)"><h3>Cota da manhã · ${esc(fil.nome)} · ${dt(P.data)}</h3><p class="sub">Litros disponíveis por terminal. ${esc(origem)}</p>
     <div class="scroll"><table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
     ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => t.grupos.includes(g) ? `<td class="r"><input class="mi" inputmode="numeric" data-t="${t.id}" data-g="${g}" value="${vC(t.id,g)}"></td>` : '<td class="r mut">—</td>').join('')}</tr>`).join('')}
-    <tr class="rb"><td><b>Reserva bandeiras Larco</b><small>vale até 14:00</small></td>${gs.map(g => { const s = sug.find(x => x.grupo === g); return `<td class="r"><input class="mi" inputmode="numeric" data-r="${g}" value="${vR(g)}"><small>sugestão ${s ? nf(s.litros) : '–'}</small></td>`; }).join('')}</tr>
     </tbody></table></div>
-    <p class="sub">A sugestão da reserva é a média do que as bandeiras Larco faturaram nas últimas 8 ${esc(dsem)}s nesta filial.</p>
+    <h3 style="margin-top:14px">Reserva das bandeiras por carteira <small class="sub">vale até 14:00</small></h3>
+    ${rcarts.length ? `<div class="scroll"><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>${rcarts.map(c => `<tr class="rb"><td><b>${esc(c)}</b></td>${gs.map(g => `<td class="r"><input class="mi" inputmode="numeric" data-rc="${esc(c)}" data-r="${g}" value="${vR(c, g)}"><small>sugestão ${sR(c, g)}</small></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">Nenhuma carteira com cliente bandeira comprando nesta filial neste dia da semana.</div>'}
+    <p class="sub">A sugestão é a média do que os clientes bandeira Larco de cada carteira compraram nas últimas 8 ${esc(dsem)}s nesta filial, arredondada para cima. Cada carteira só usa a própria reserva; às 14:00 a sobra volta para todos.</p>
     <div class="mact"><button class="btn sec" id="cX">Cancelar</button><button class="btn" id="cOk">Salvar e liberar cota</button></div></div>`;
   document.body.appendChild(d);
   d.querySelectorAll('input.mi').forEach(i => i.oninput = () => { i.value = i.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); });
@@ -1079,10 +1082,10 @@ async function abrirCota() {
   d.querySelector('#cOk').onclick = async () => {
     const num = v => +(v || '').replace(/\D/g, '');
     const bc = [...d.querySelectorAll('input[data-t]')].map(i => ({data:P.data, terminal_id:+i.dataset.t, grupo:i.dataset.g, litros:num(i.value)}));
-    const br = [...d.querySelectorAll('input[data-r]')].map(i => { const s = sug.find(x => x.grupo === i.dataset.r); return {data:P.data, filial:P.fil, grupo:i.dataset.r, litros:num(i.value), sugerido: s ? s.litros : null}; });
+    const br = [...d.querySelectorAll('input[data-r]')].map(i => { const s = sug.find(x => x.carteira === i.dataset.rc && x.grupo === i.dataset.r); return {data:P.data, filial:P.fil, carteira:i.dataset.rc, grupo:i.dataset.r, litros:num(i.value), sugerido: s ? s.litros : null}; });
     try {
       await api('cota_dia?on_conflict=data,terminal_id,grupo', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(bc)});
-      await api('reserva_bandeira?on_conflict=data,filial,grupo', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(br)});
+      if (br.length) await api('reserva_bandeira?on_conflict=data,filial,carteira,grupo', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(br)});
       d.remove(); toast('Cota salva e liberada'); await carregarPed();
     } catch(x) { toast('Erro ao salvar: ' + errTxt(x)); }
   };
@@ -1171,6 +1174,16 @@ function abrirEdicao(p) {
   desenha(p.terminal_id); document.body.appendChild(d);
 }
 
+
+
+function resCart(R, gs) {
+  const L = (P.painel?.linhas || []).filter(l => l.tipo === 'reserva_cart' && (+l.cota || +l.usado));
+  if (!L.length) return '';
+  const cs = [...new Set(L.map(l => l.chave))].sort();
+  return `<div><h3>Reserva das bandeiras por carteira <small class="sub">${R.bandAberta ? 'até 14:00 · usado / reservado' : 'liberada às 14:00 · usado'}</small></h3><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+    ${cs.map(c => `<tr><td><b>${esc(c)}</b></td>${gs.map(g => { const l = L.find(x => x.chave === c && x.grupo === g); if (!l) return '<td class="r mut">—</td>'; const sb = (+l.cota||0) - (+l.usado||0);
+      return `<td class="r">${nf(l.usado)}${R.bandAberta && +l.cota ? `<small>de ${nf(l.cota)} · ${sb >= 0 ? 'sobra ' + nf(sb) : 'passou ' + nf(-sb)}</small>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
 
 /* ---------- PLANTÕES E SUBSTITUIÇÕES ---------- */
 const MOTIVO_COB = {plantao:'plantão', ferias:'férias', atestado:'atestado', outro:'substituição'};
