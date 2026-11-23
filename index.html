@@ -225,7 +225,9 @@ async function auth(body, grant) {
 }
 async function api(path, opt = {}) {
   if (S.exp && Date.now() > S.exp && S.refresh) await auth({refresh_token:S.refresh}, 'refresh_token');
-  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {...opt, headers:{apikey:SB_KEY, Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json', ...(opt.headers||{})}});
+  const go = () => fetch(`${SB_URL}/rest/v1/${path}`, {...opt, headers:{apikey:SB_KEY, Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json', ...(opt.headers||{})}});
+  let r = await go();
+  if (r.status >= 500 && (!opt.method || opt.method === 'GET')) { await new Promise(res => setTimeout(res, 1200)); r = await go(); }
   if (!r.ok) { const t = await r.text(); throw new Error(t.slice(0,300)); }
   const t = await r.text(); return t ? JSON.parse(t) : null;
 }
@@ -236,7 +238,9 @@ function telaLogin(err='') {
     <input id="em" type="email" placeholder="E-mail" autocomplete="username" required>
     <input id="pw" type="password" placeholder="Senha" autocomplete="current-password" required>
     <div class="err">${esc(err)}</div><button class="btn" style="width:100%">Entrar</button></form></div>`;
-  $('#fl').onsubmit = async e => { e.preventDefault(); try { await auth({email:$('#em').value.trim(), password:$('#pw').value}, 'password'); await iniciar(); } catch(x) { telaLogin('E-mail ou senha incorretos.'); } };
+  $('#fl').onsubmit = async e => { e.preventDefault(); const b = e.target.querySelector('button'); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
+    try { await auth({email:$('#em').value.trim(), password:$('#pw').value}, 'password'); } catch(x) { return telaLogin('E-mail ou senha incorretos.'); }
+    try { await iniciar(); } catch(x) { telaLogin('Login ok, mas o CRM demorou para carregar. Tente entrar de novo em alguns segundos.'); } };
 }
 function telaTrocaSenha(err='') {
   $('#app').innerHTML = `<div class="login-wrap"><form class="login" id="fs"><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><p>Primeiro acesso: crie sua senha pessoal (mínimo 8 caracteres).</p>
@@ -261,7 +265,7 @@ async function iniciar() {
   if (!todas) S.resumo = S.resumo.filter(r => S.carteiras.includes(r.carteira_codigo));
   S.cart = S.gestao ? null : S.carteiras[0];
   S.tab = S.gestao ? 'equipe' : 'hoje';
-  try { S.pedLib = (await api('filiais?liberada_equipe=eq.true&select=codigo')).length > 0; } catch(e) { S.pedLib = false; }
+  try { S.pedLib = (await api('filiais?liberada_equipe=eq.true&select=codigo')).length > 0; } catch(e) { S.pedLib = true; }
   await abrir();
 }
 function sair() { try { localStorage.removeItem('larcocrm_rt'); } catch(e) {} Object.assign(S, {token:null, refresh:null, user:null, me:null}); telaLogin(); }
