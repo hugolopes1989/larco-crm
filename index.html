@@ -916,6 +916,7 @@ function desenharPed() {
   const acoes = p => { const s = statusEf(p, R); const b = [];
     const dono = podeLancar() && (ehOp() || S.carteiras.includes(p.carteira)) && R.isHoje;
     if (s === 'A' && ehOp()) b.push(`<button class="btn sm ok" data-a="aut" data-id="${p.id}">Autorizar</button><button class="btn sm sec" data-a="neg" data-id="${p.id}">Negar</button>`);
+    if ((dono && ['C','R','A','E'].includes(s)) || (ehOp() && ['C','R','A','E','V'].includes(s) && !p.virado)) b.push(`<button class="btn sm sec" data-a="edit" data-id="${p.id}">Editar</button>`);
     if ((s === 'R' || s === 'E') && dono) b.push(`<button class="btn sm" data-a="conf" data-id="${p.id}">Confirmar</button>`);
     if (['C','R','A','E'].includes(s) && dono) b.push(`<button class="btn sm sec" data-a="canc" data-id="${p.id}">Cancelar</button>`);
     if (s === 'C' && ehOp() && R.passado && !p.virado) b.push(`<button class="btn sm" data-a="virar" data-id="${p.id}">Virar p/ hoje</button>`);
@@ -1035,6 +1036,7 @@ async function acaoPed(a, id) {
     if (a === 'canc') await api(`pedidos?id=eq.${id}`, {method:'PATCH', body:JSON.stringify({status:'X'})});
     if (a === 'conf') { const r = await api(`pedidos?id=eq.${id}&select=status,motivo_autorizacao`, {method:'PATCH', headers:{Prefer:'return=representation'}, body:JSON.stringify({status:'C'})});
       if (r && r[0] && r[0].status === 'A') toast('Sem saldo para confirmar: foi para autorização. ' + (r[0].motivo_autorizacao || '')); }
+    if (a === 'edit') return abrirEdicao(p);
     if (a === 'virar') { await rpc('virar_pedido', {p_id:id, p_para:relogio().hoje}); toast('Pedido virado para hoje'); }
     if (['aut','neg','canc'].includes(a)) toast({aut:'Pedido autorizado', neg:'Pedido negado', canc:'Pedido cancelado'}[a]);
     await carregarPed();
@@ -1108,6 +1110,54 @@ async function abrirPesos() {
     };
   };
   desenha(); document.body.appendChild(d);
+}
+
+
+function abrirEdicao(p) {
+  const R = relogio(); const ts = P.terms.filter(t => t.filial === p.filial);
+  const s0 = statusEf(p, R);
+  let st = s0 === 'A' ? (p.status_pedido || 'C') : (s0 === 'E' ? 'C' : p.status);
+  if (st === 'R' && !R.resAberta) st = 'C';
+  const d = document.createElement('div'); d.className = 'modal';
+  const vol = t => PRODS.filter(([k,,g]) => t.grupos.includes(g) || +p[k]).map(([k,l,g]) => `<label>${l}<input class="mi" inputmode="numeric" data-k="${k}" value="${+p[k] ? nf(p[k]) : ''}" ${t.grupos.includes(g) ? '' : 'title="Este terminal não tem este produto"'}></label>`).join('');
+  const desenha = tid => {
+    const t = ts.find(x => x.id === tid) || ts[0];
+    d.innerHTML = `<div class="mbox" style="width:min(640px,100%)"><h3>Editar pedido</h3>
+      <p class="sub"><b>${esc(p.cliente_nome)}</b> · ${esc(p.carteira)}${p.bandeira ? ' · bandeira Larco' : ''}. Para trocar o cliente, cancele e lance de novo.</p>
+      <form class="pform" id="fEd" autocomplete="off">
+        <label>Terminal<select id="eTerm">${ts.map(x => `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+        ${p.status === 'V' ? '<label>Tipo<div class="sub">Virado</div></label>' : `<label>Tipo<div class="seg" id="eSt"><button type="button" data-s="C" class="${st==='C'?'on':''}">Confirmado</button><button type="button" data-s="R" class="${st==='R'?'on':''}" ${R.resAberta && p.data === R.hoje ? '' : 'disabled title="Reservas só até 10:30"'}>Reservado</button></div></label>`}
+        <div class="full pvol">${vol(t)}</div>
+        <label class="full">Observação<input id="eObs" maxlength="200" value="${esc(p.observacao || '')}"></label>
+        <p class="full sub">Se o novo volume passar do saldo, o pedido vai para autorização de Hugo/Gabriel.</p>
+        <div class="full pact"><span id="eMsg" class="sub"></span><button type="button" class="btn sec" id="eX">Cancelar</button><button class="btn" id="eOk">Salvar alterações</button></div>
+      </form></div>`;
+    d.querySelectorAll('.pvol input').forEach(i => i.oninput = () => { i.value = i.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); });
+    d.querySelectorAll('#eSt button').forEach(b => b.onclick = () => { if (b.disabled) return; st = b.dataset.s; d.querySelectorAll('#eSt button').forEach(x => x.classList.toggle('on', x === b)); });
+    d.querySelector('#eTerm').onchange = e => { d.querySelectorAll('.pvol input').forEach(i => p['_' + i.dataset.k] = i.value); desenha(+e.target.value); d.querySelectorAll('.pvol input').forEach(i => { if (p['_' + i.dataset.k] != null) i.value = p['_' + i.dataset.k]; }); };
+    d.querySelector('#eX').onclick = () => d.remove();
+    d.querySelector('#fEd').onsubmit = async e => {
+      e.preventDefault();
+      const term = ts.find(x => x.id === +d.querySelector('#eTerm').value);
+      const body = {terminal_id: term.id, observacao: (d.querySelector('#eObs').value || '').trim() || null};
+      PRODS.forEach(([k]) => body[k] = 0);
+      let tot = 0, fora = [];
+      d.querySelectorAll('.pvol input').forEach(i => { const v = +(i.value || '').replace(/\D/g, ''); body[i.dataset.k] = v; tot += v; const g = PRODS.find(x => x[0] === i.dataset.k)[2]; if (v && !term.grupos.includes(g)) fora.push(i.parentElement.firstChild.textContent); });
+      const msg = d.querySelector('#eMsg');
+      if (!tot) { msg.textContent = 'Informe o volume. Para zerar, use Cancelar pedido.'; return; }
+      if (fora.length) { msg.textContent = `${term.nome} não tem: ${fora.join(', ')}.`; return; }
+      if (p.status !== 'V') body.status = st;
+      d.querySelector('#eOk').disabled = true; msg.textContent = 'Salvando…';
+      try {
+        const r = await api(`pedidos?id=eq.${p.id}&select=status,motivo_autorizacao`, {method:'PATCH', headers:{Prefer:'return=representation'}, body:JSON.stringify(body)});
+        d.remove();
+        if (r && r[0] && r[0].status === 'A') toast('Pedido alterado, mas passou do saldo: foi para autorização. ' + (r[0].motivo_autorizacao || ''));
+        else toast('Pedido alterado');
+        await carregarPed();
+      } catch(x) { msg.textContent = errTxt(x); d.querySelector('#eOk').disabled = false; }
+    };
+  };
+  desenha(p.terminal_id); document.body.appendChild(d);
 }
 
 /* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
