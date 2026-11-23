@@ -178,6 +178,7 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 .cobl{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}.cobi{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.cobi small{display:block;color:var(--mut)}
 .cobc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px;margin-top:6px}.cobc small{color:var(--mut)}
+.metg{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin:10px 0}.metg label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--mut)}.metg label small{font-size:11px}.metg input.mi{width:100%;box-sizing:border-box}
 .psel{background:#fff;border:1px solid var(--g2);border-radius:10px;padding:9px 12px}
 .pnovo{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:6px}
 .pvol{display:flex;flex-wrap:wrap;gap:10px}.pvol .mi{width:130px}
@@ -1210,6 +1211,63 @@ async function abrirCoberturas() {
   };
 }
 
+
+/* ---------- METAS DO MÊS → PRODUTO, PESOS E META DIA ---------- */
+const diasVenda = (ini, fim) => { let n = 0; for (let d = new Date(ini + 'T12:00:00'); iso(d) <= fim; d.setDate(d.getDate() + 1)) { const w = d.getDay(); n += w === 0 ? 0 : w === 6 ? 0.5 : 1; } return n; };
+async function abrirMetasMes(mesIni) {
+  const h = hojeSP(); const prox = new Date(h.getFullYear(), h.getMonth() + (h.getDate() >= 20 ? 1 : 0), 1);
+  const mes = mesIni || iso(prox).slice(0, 7) + '-01';
+  const ant = (() => { const d = new Date(mes + 'T12:00:00'); d.setMonth(d.getMonth() - 1); return iso(d).slice(0, 7) + '-01'; })();
+  const [mm, ma, mp] = await Promise.all([api(`metas?mes=eq.${mes}&select=*`), api(`metas?mes=eq.${ant}&select=*`), api(`meta_produto?mes=eq.${mes}&select=*`)]);
+  const carts = S.resumo.map(r => r.carteira_codigo);
+  const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || '';
+  const fixa = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).aceita_prospect === false && /EMB/.test(c);
+  const val = (L, c) => { const x = L.find(m => m.carteira_codigo === c); return x ? +x.meta_m3 : null; };
+  const nomeF = f => f === 'FORA' ? 'Fora (ex.: Bahia)' : (NOME_PAINEL[f] || (P.filiais.find(x => x.codigo === f) || {}).nome || f);
+  const fimMes = (() => { const d = new Date(mes + 'T12:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); return iso(d); })();
+  const dias = diasVenda(mes, fimMes);
+  const COLM = [['GAS','Gasolina'],['ETA','Etanol'],['USINA','Usina'],['S10','S10'],['S500','S500']];
+  const previa = () => {
+    if (!mp.length) return '<div class="empty">Salve as metas e clique em <b>Calcular divisão</b> para ver como fica por produto.</div>';
+    const cs = [...new Set(mp.map(x => x.carteira))].sort();
+    const sum = (f) => mp.filter(f).reduce((s, x) => s + +x.m3, 0);
+    const linhas = cs.map(c => { const tot = sum(x => x.carteira === c); const base = (mp.find(x => x.carteira === c) || {}).base;
+      return `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}${base === 'media_filial' ? ' · sem histórico: usou a média da filial' : ''}${fixa(c) ? ' · bandeira: fora dos pesos' : ''}</small></td><td class="r"><b>${nf(tot)}</b></td>
+        ${COLM.map(([k]) => { const v = sum(x => x.carteira === c && x.coluna === k); const fs = mp.filter(x => x.carteira === c && x.coluna === k).sort((a,b) => b.m3 - a.m3);
+          return `<td class="r">${v ? `${nf(v)}<small>${nf(100 * v / tot, 0)}%${fs.length > 1 ? ' · ' + fs.map(x => `${esc(nomeF(x.filial))} ${nf(x.m3)}`).join(', ') : fs[0] && fs[0].filial !== '16' ? ' · ' + esc(nomeF(fs[0].filial)) : ''}</small>` : '<span class="mut">—</span>'}</td>`; }).join('')}</tr>`; }).join('');
+    const fils = [...new Set(mp.map(x => x.filial))].filter(f => f !== 'FORA');
+    const md = fils.map(f => `<tr><td><b>${esc(nomeF(f))}</b></td>${COLM.map(([k]) => { const v = sum(x => x.filial === f && x.coluna === k); return `<td class="r">${v ? nf(Math.round(v * 1000 / dias / 1000) * 1000) : '<span class="mut">—</span>'}</td>`; }).join('')}</tr>`).join('');
+    return `<h3 style="margin-top:14px">Divisão por produto (m³ no mês)</h3><div class="scroll"><table class="ptab"><thead><tr><th>Carteira</th><th class="r">Total</th>${COLM.map(([,l]) => `<th class="r">${l}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table></div>
+      <h3 style="margin-top:14px">Meta Dia Plan que vai ficar (litros por dia útil · sábado = metade)</h3><div class="scroll"><table class="ptab"><thead><tr><th>Filial</th>${COLM.map(([,l]) => `<th class="r">${l}</th>`).join('')}</tr></thead><tbody>${md}</tbody></table></div>
+      <p class="sub">Filiais com carteiras sem meta cadastrada ficam com a Meta Dia Plan menor. Preencha todas as carteiras que vendem pela filial.</p>`;
+  };
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<div class="mbox" style="width:min(1000px,100%)"><h3>Metas do mês</h3>
+    <p class="sub">Digite a meta de cada carteira em m³. O sistema divide por produto e filial conforme o que a carteira vendeu nos últimos 3 meses e, ao aplicar, atualiza os pesos das carteiras e a Meta Dia Plan das filiais.</p>
+    <div class="bh-r"><label class="sub">Mês <input type="month" id="mMes" value="${mes.slice(0,7)}"></label><span class="sub">${nf(dias, 1)} dias de venda no mês</span></div>
+    <div class="cobc metg">${carts.map(c => `<label>${esc(c)} <small>${esc(cons(c))}</small><input class="mi" inputmode="decimal" data-c="${esc(c)}" value="${val(mm, c) != null ? nf(val(mm, c)) : ''}" placeholder="${val(ma, c) != null ? 'mês ant. ' + nf(val(ma, c)) : 'm³'}"></label>`).join('')}</div>
+    <div id="mPrev">${previa()}</div>
+    <div class="mact"><span id="mMsg" class="sub"></span><button class="btn sec" id="mX">Fechar</button><button class="btn sec" id="mCalc">Salvar metas e calcular divisão</button><button class="btn" id="mAp" ${mp.length ? '' : 'disabled'}>Aplicar pesos e Meta Dia Plan</button></div></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#mX').onclick = () => d.remove();
+  d.querySelector('#mMes').onchange = e => { d.remove(); abrirMetasMes(e.target.value + '-01'); };
+  d.querySelector('#mCalc').onclick = async () => {
+    const msg = d.querySelector('#mMsg'); msg.textContent = 'Calculando…';
+    const body = [...d.querySelectorAll('.metg input')].filter(i => i.value.trim()).map(i => ({carteira_codigo:i.dataset.c, mes, meta_m3:+i.value.replace(/\./g,'').replace(',', '.')}));
+    try {
+      if (body.length) await api('metas?on_conflict=carteira_codigo,mes', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(body)});
+      const r = await rpc('calcular_metas', {p_mes:mes});
+      d.remove(); await abrirMetasMes(mes);
+      toast(`Divisão calculada com o histórico de ${dt(r.historico_de)} a ${dt(r.historico_ate)}.` + (r.sem_base && r.sem_base.length ? ` Sem histórico nem filial base: ${r.sem_base.join(', ')}.` : ''));
+    } catch(x) { msg.textContent = errTxt(x); }
+  };
+  d.querySelector('#mAp').onclick = async () => {
+    const msg = d.querySelector('#mMsg'); msg.textContent = 'Aplicando…';
+    try { const r = await rpc('aplicar_metas', {p_mes:mes}); d.remove(); toast(`Aplicado: pesos das carteiras e Meta Dia Plan valem a partir de ${dt(mes)}.`); await atualizarPed(); }
+    catch(x) { msg.textContent = errTxt(x); }
+  };
+}
+
 /* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
 const COLS = [['GAS','GAS C'],['ETA','EHC'],['S10','S10'],['S500','S500'],['USINA','USINA']];
 const NOME_PAINEL = {'16':'Ipojuca', '17':'São Luís'};
@@ -1251,7 +1309,7 @@ function desenharGeral() {
   $('#app').innerHTML = hdrPed() + `<main class="eq ped">
     <section class="blk"><div class="bh"><div><h3>Monitoramento de Vendas · ${dt(P.data)}</h3>
       <p class="sub">Lançado = pedidos confirmados + reservas válidas (até 10:30) + virados (<i class="vtag">V</i>). Saldo = disponível − lançado. Atualizado às ${esc(a.slice(11,16))}, atualiza sozinho a cada 30 s.</p></div>
-      <div class="bh-r">${segModo()}<input type="date" id="pData" value="${P.data}" aria-label="Data">${ehOp() ? '<button class="btn sm" id="bMeta">Meta Dia Plan</button>' : ''}</div></div>
+      <div class="bh-r">${segModo()}<input type="date" id="pData" value="${P.data}" aria-label="Data">${ehOp() ? '<button class="btn sm" id="bMetasMes">Metas do mês</button><button class="btn sm sec" id="bMeta">Meta Dia Plan</button>' : ''}</div></div>
       <div class="strip mstrip">
         <div class="st"><b>${nf(tot.meta)}</b><span>Meta dia (L)</span></div>
         <div class="st"><b>${nf(tot.cota)}</b><span>Cota disponível</span></div>
@@ -1264,6 +1322,7 @@ function desenharGeral() {
   ligarHdrPed(); ligarSegModo();
   $('#pData').onchange = async e => { if (!e.target.value) return; P.data = e.target.value; await atualizarPed(); };
   if ($('#bMeta')) $('#bMeta').onclick = abrirMeta;
+  if ($('#bMetasMes')) $('#bMetasMes').onclick = () => abrirMetasMes();
   document.querySelectorAll('.mcard').forEach(b => b.onclick = async () => { if (!P.filiais.some(f => f.codigo === b.dataset.f)) return; P.fil = b.dataset.f; P.modo = 'filial'; await carregarPed(); });
 }
 async function abrirMeta() {
