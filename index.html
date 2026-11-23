@@ -176,6 +176,8 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .pqi:hover,.pqi:focus-visible{background:#f3f6ff}.pqi small{display:block;color:var(--mut);font-size:12px}
 .tag.out{background:#fff1df;color:#a24c00;font-weight:700}
 .palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
+.cobl{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}.cobi{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.cobi small{display:block;color:var(--mut)}
+.cobc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px;margin-top:6px}.cobc small{color:var(--mut)}
 .psel{background:#fff;border:1px solid var(--g2);border-radius:10px;padding:9px 12px}
 .pnovo{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:6px}
 .pvol{display:flex;flex-wrap:wrap;gap:10px}.pvol .mi{width:130px}
@@ -263,7 +265,9 @@ async function iniciar() {
   S.me = me[0];
   S.resumo = await api('v_carteira_resumo?select=*&order=carteira_codigo');
   const todas = ['supervisor','gerente_corp'].includes(S.me.perfil); S.podeMeta = todas; S.gestao = todas || S.me.perfil === 'gerente';
-  S.carteiras = todas ? S.resumo.map(r => r.carteira_codigo) : S.me.usuario_carteiras.map(c => c.carteira_codigo).sort();
+  S.cobre = {};
+  if (!todas) { try { const h = iso(hojeSP()); (await api(`coberturas?usuario_id=eq.${S.me.id}&inicio=lte.${h}&fim=gte.${h}&select=carteira,motivo,fim`)).forEach(c => S.cobre[c.carteira] = c); } catch(e) {} }
+  S.carteiras = todas ? S.resumo.map(r => r.carteira_codigo) : [...new Set(S.me.usuario_carteiras.map(c => c.carteira_codigo).concat(Object.keys(S.cobre)))].sort();
   if (!todas) S.resumo = S.resumo.filter(r => S.carteiras.includes(r.carteira_codigo));
   S.cart = S.gestao ? null : S.carteiras[0];
   S.tab = S.gestao ? 'equipe' : 'hoje';
@@ -289,7 +293,7 @@ async function abrir() {
 function resumoAtual() { return S.resumo.find(r => r.carteira_codigo === S.cart) || {}; }
 function render() {
   const sup = S.gestao;
-  const opts = (sup ? ['<option value="">Equipe (todas)</option>'] : []).concat(S.carteiras.map(c => { const r = S.resumo.find(x => x.carteira_codigo === c) || {}; return `<option value="${esc(c)}" ${c===S.cart?'selected':''}>${esc(c)}${r.consultor_nome ? ' · ' + esc(r.consultor_nome) : ''}</option>`; })).join('');
+  const opts = (sup ? ['<option value="">Equipe (todas)</option>'] : []).concat(S.carteiras.map(c => { const r = S.resumo.find(x => x.carteira_codigo === c) || {}; return `<option value="${esc(c)}" ${c===S.cart?'selected':''}>${esc(c)}${r.consultor_nome ? ' · ' + esc(r.consultor_nome) : ''}${S.cobre && S.cobre[c] ? ` · cobrindo (${MOTIVO_COB[S.cobre[c].motivo] || ''} até ${dt(S.cobre[c].fim)})` : ''}</option>`; })).join('');
   const hdr = `<header><div class="brand"><span class="lg">LARCO</span><span class="crm">CRM</span></div><select id="selCart" aria-label="Carteira">${opts}</select><span class="sp"></span>${S.pedLib || verTodas() ? '<button class="btn sec" id="bPed">📦 Pedidos do dia</button>' : ''}<span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
   if (!S.cart) { $('#app').innerHTML = hdr + telaEquipe(); ligarHeader(); ligarEquipe(); return; }
   const r = resumoAtual(); const rows = S.rows;
@@ -942,7 +946,7 @@ function desenharPed() {
   $('#app').innerHTML = hdrPed() + `<main class="eq ped">
     <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados e reservados (até 10:30). Virados vêm da cota de ontem: não descontam nada de hoje, só entram no volume que sai.</p></div>
       <div class="bh-r">${segModo()}<div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
-      ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
+      ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bCob">Plantões e substituições</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
       ${avisos}
       ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
       <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></section>
@@ -956,6 +960,7 @@ function desenharPed() {
   $('#pData').onchange = async e => { if (!e.target.value) return; P.data = e.target.value; await carregarPed(); };
   if ($('#bCota')) $('#bCota').onclick = abrirCota;
   if ($('#bPesos')) $('#bPesos').onclick = abrirPesos;
+  if ($('#bCob')) $('#bCob').onclick = abrirCoberturas;
   if ($('#bLib')) $('#bLib').onclick = async () => { const v = !fil.liberada_equipe;
     try { await api(`filiais?codigo=eq.${P.fil}`, {method:'PATCH', body:JSON.stringify({liberada_equipe:v})}); fil.liberada_equipe = v;
       toast(v ? `${fil.nome} liberada: consultores e externos já podem lançar` : `${fil.nome} voltou a ficar só com você e o Gabriel`); desenharPed(); } catch(x) { toast(errTxt(x)); } };
@@ -1163,6 +1168,46 @@ function abrirEdicao(p) {
     };
   };
   desenha(p.terminal_id); document.body.appendChild(d);
+}
+
+
+/* ---------- PLANTÕES E SUBSTITUIÇÕES ---------- */
+const MOTIVO_COB = {plantao:'plantão', ferias:'férias', atestado:'atestado', outro:'substituição'};
+async function abrirCoberturas() {
+  const hoje = iso(hojeSP());
+  const [lista, pessoas] = await Promise.all([
+    api(`coberturas?fim=gte.${hoje}&select=*&order=inicio,carteira`),
+    api('usuarios?ativo=eq.true&perfil=in.(consultor,externo,supervisor)&select=id,nome,perfil&order=nome')]);
+  const nome = id => (pessoas.find(p => p.id === id) || {}).nome || '?';
+  const carts = S.resumo.map(r => r.carteira_codigo);
+  const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || '';
+  const sab = (() => { const d = hojeSP(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)); return iso(d); })();
+  const d = document.createElement('div'); d.className = 'modal';
+  const grupos = {}; lista.forEach(c => { const k = [c.usuario_id, c.inicio, c.fim, c.motivo].join('|'); (grupos[k] = grupos[k] || {...c, carts:[], ids:[]}); grupos[k].carts.push(c.carteira); grupos[k].ids.push(c.id); });
+  d.innerHTML = `<div class="mbox" style="width:min(760px,100%)"><h3>Plantões e substituições</h3>
+    <p class="sub">Quem cobre uma carteira vê os clientes dela no CRM e lança pedidos nela (desconta da cota da carteira coberta) durante o período. Depois o acesso sai sozinho.</p>
+    <div class="cobl">${Object.values(grupos).map(g => `<div class="cobi"><div><b>${esc(nome(g.usuario_id))}</b> cobre <b>${g.carts.map(esc).join(', ')}</b><small>${MOTIVO_COB[g.motivo]} · ${g.inicio === g.fim ? dt(g.inicio) : `${dt(g.inicio)} a ${dt(g.fim)}`}${g.observacao ? ' · ' + esc(g.observacao) : ''}</small></div><button class="btn sm sec" data-del="${g.ids.join(',')}">Remover</button></div>`).join('') || '<div class="empty">Nenhum plantão ou substituição ativa ou futura.</div>'}</div>
+    <h3 style="margin-top:16px">Nova</h3>
+    <div class="pform">
+      <label>Quem vai cobrir<select id="cQuem">${pessoas.filter(p => p.perfil !== 'supervisor').map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label>Motivo<select id="cMot"><option value="plantao">Plantão</option><option value="ferias">Férias</option><option value="atestado">Atestado / doença</option><option value="outro">Outro</option></select></label>
+      <label>De<input type="date" id="cIni" value="${sab}"></label>
+      <label>Até<input type="date" id="cFim" value="${sab}"></label>
+      <div class="full"><span class="sub">Carteiras que vai cobrir</span><div class="cobc">${carts.map(c => `<label class="chk"><input type="checkbox" value="${esc(c)}"> ${esc(c)} <small>${esc(cons(c))}</small></label>`).join('')}</div></div>
+      <label class="full">Observação<input id="cObs" maxlength="150" placeholder="opcional"></label>
+    </div>
+    <div class="mact"><span id="cMsg" class="sub" style="color:var(--coral)"></span><button class="btn sec" id="cX">Fechar</button><button class="btn" id="cOk">Salvar</button></div></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#cX').onclick = () => d.remove();
+  d.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { try { await api(`coberturas?id=in.(${b.dataset.del})`, {method:'DELETE'}); d.remove(); toast('Removido'); abrirCoberturas(); } catch(x) { toast(errTxt(x)); } });
+  d.querySelector('#cOk').onclick = async () => {
+    const cs = [...d.querySelectorAll('.cobc input:checked')].map(i => i.value);
+    const ini = d.querySelector('#cIni').value, fim = d.querySelector('#cFim').value, msg = d.querySelector('#cMsg');
+    if (!cs.length) { msg.textContent = 'Marque pelo menos uma carteira.'; return; }
+    if (!ini || !fim || fim < ini) { msg.textContent = 'Confira as datas.'; return; }
+    const body = cs.map(c => ({usuario_id:d.querySelector('#cQuem').value, carteira:c, inicio:ini, fim, motivo:d.querySelector('#cMot').value, observacao:(d.querySelector('#cObs').value || '').trim() || null}));
+    try { await api('coberturas', {method:'POST', headers:{Prefer:'return=minimal'}, body:JSON.stringify(body)}); d.remove(); toast('Salvo. A pessoa vê as carteiras ao entrar no CRM no período.'); abrirCoberturas(); } catch(x) { msg.textContent = errTxt(x); }
+  };
 }
 
 /* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
