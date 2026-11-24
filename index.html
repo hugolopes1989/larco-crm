@@ -1038,7 +1038,7 @@ function painelVendas() {
   const LR = L.filter(x => x.regiao === S.mvReg);
   const tot = k => LR.reduce((t,x) => t + (+x[k]||0), 0), tMeta = LR.filter(x => x.temMeta).reduce((t,x) => t + x.meta, 0);
   const chips = `<div class="chips mv-reg">${regs.map(r => `<button data-r="${esc(r)}" class="${r===S.mvReg?'on':''}">${esc(r)}</button>`).join('')}</div>`;
-  const rank = `${chips}<div class="scroll"><table class="ptab mv-rank"><thead><tr><th>#</th><th>Consultor</th><th class="r">Vendido hoje</th><th class="r">Reservas hoje</th><th class="r">Mês (m³)</th><th class="r">Meta do mês</th><th>% da meta</th><th class="r">Projeção</th></tr></thead><tbody>
+  const rank = `${chips}<div class="scroll"><table class="ptab mv-rank"><thead><tr><th>#</th><th>Consultor</th><th class="r">Vendido hoje</th><th class="r">Reservas hoje</th><th class="r">Mês (m³)</th><th class="r">Meta do mês</th><th>Realizado ÷ meta</th><th class="r">Projeção</th></tr></thead><tbody>
     ${LR.map(x => `<tr class="${eu(x) ? 'eu' : ''}"><td class="mv-m">${x.pos ? medal(x.pos) : '—'}</td><td><b>${esc(x.consultor)}</b><small>${esc(x.carts.join(' + '))}</small></td>
       <td class="r">${nf(x.conf,1)}${x.vir ? `<small>${nf(x.vir,1)} virados</small>` : ''}</td><td class="r">${x.res ? nf(x.res,1) : '<span class="mut">—</span>'}</td><td class="r"><b>${nf(x.real)}</b></td><td class="r">${x.temMeta ? nf(x.meta) : '<span class="mut">sem meta</span>'}</td>
       <td>${x.pct != null ? `<div class="mv-pc">${bar(x.pct)}<b>${nf(x.pct,0)}%</b></div>` : '<span class="mut">—</span>'}</td><td class="r">${nf(x.proj)}</td></tr>`).join('')}
@@ -1054,7 +1054,7 @@ function painelVendas() {
     <div class="scroll"><table class="ptab mv-prod"><thead><tr><th>Hoje por produto (m³)</th>${GORD.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
       <tr><td>Vendido</td>${GORD.map(g => `<td class="r">${cp[g] ? nf(cp[g],1) : '<span class="mut">—</span>'}</td>`).join('')}</tr>
       <tr><td>Reservas</td>${GORD.map(g => `<td class="r">${rp[g] ? nf(rp[g],1) : '<span class="mut">—</span>'}</td>`).join('')}</tr></tbody></table></div>
-    <details class="mv-d" ${S.mvAberto === false ? '' : 'open'}><summary>🏁 Ranking do mês por região · % da meta (vendido hoje já conta)</summary>${rank}</details>
+    <details class="mv-d" ${S.mvAberto === false ? '' : 'open'}><summary>🏁 Ranking do mês por região · realizado ÷ meta do mês (vendido hoje já conta)</summary>${rank}</details>
   </section>`;
 }
 function formPed(R, ts) {
