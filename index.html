@@ -162,6 +162,14 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .ptab td small,.ptab th small{display:block;font-size:11.5px;color:var(--mut);font-weight:500}
 .ptab td b.neg{color:var(--coral)}.ptab td b.avn{color:#127a3e}.ptab td b.zer{color:var(--amb)}.ptab .mut,.mut{color:var(--mut)}
 .pgr{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}.pgr>div{overflow-x:auto}
+.mv .bh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.mv-pos{text-align:center;background:linear-gradient(135deg,var(--g),var(--g2));color:#fff;border-radius:14px;padding:8px 16px;min-width:110px}.mv-pos b{display:block;font:800 26px Poppins,sans-serif}.mv-pos span{font-size:11.5px;opacity:.9}
+.mv-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:8px 0 12px}
+.mv-k>div{background:#f6f8fc;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:4px}.mv-k span{font-size:12.5px;color:var(--mut)}.mv-k b{font:700 22px Poppins,sans-serif}.mv-k em{font-style:normal;font-size:12px;color:var(--mut)}
+.mv-bar{height:7px;background:#e3e8f6;border-radius:99px;overflow:hidden}.mv-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--or),#ffb347);border-radius:99px}
+.mv-pc{display:flex;align-items:center;gap:8px;min-width:130px}.mv-pc .mv-bar{flex:1}
+.mv-rank tr.eu td{background:#fff4e8}.mv-rank tr.eu td:first-child{box-shadow:inset 3px 0 0 var(--or)}.mv-m{font-size:16px;text-align:center}
+.mv-d{margin-top:10px}.mv-d summary{cursor:pointer;font:600 14px Poppins,sans-serif;color:var(--g);padding:6px 0}
 .pclock{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.pclock span{font:600 13px Inter,sans-serif;border-radius:999px;padding:5px 12px}
 .pclock .on{background:#e3f6ea;color:#127a3e}.pclock .off{background:#eef1f9;color:var(--mut)}.pclock .warn{background:#fdecea;color:#b32a22}
 .chips .nb{background:var(--coral);color:#fff;border-radius:8px;padding:0 6px;font-size:11px}
@@ -877,6 +885,7 @@ async function carregarPed() {
     rpc('painel_pedidos', {p_data:P.data, p_filial:P.fil}),
     api(`pedidos?data=eq.${P.data}&filial=eq.${P.fil}&select=*&order=criado_em.desc`)]);
   P.painel = pn; P.peds = peds;
+  try { P.vend = await rpc('painel_vendas_consultor', {p_data:P.data}); } catch(e) { P.vend = null; }
   if (ehOp()) { try { P.pend = await api('pedidos?status=eq.A&select=id,filial,data'); } catch(e) {} }
   desenharPed();
 }
@@ -944,7 +953,7 @@ function desenharPed() {
       <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
       <td class="acts">${acoes(p)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum pedido lançado nesta filial neste dia.</div>';
 
-  $('#app').innerHTML = hdrPed() + `<main class="eq ped">
+  $('#app').innerHTML = hdrPed() + `<main class="eq ped">${painelVendas()}
     <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(P.data)}</h3><p class="sub">Volumes em litros. Saldo = cota − pedidos confirmados e reservados (até 10:30). Virados vêm da cota de ontem: não descontam nada de hoje, só entram no volume que sai.</p></div>
       <div class="bh-r">${segModo()}<div class="chips" id="chFil">${chips}</div><input type="date" id="pData" value="${P.data}" aria-label="Data">
       ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bCob">Plantões e substituições</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
@@ -966,9 +975,63 @@ function desenharPed() {
     try { await api(`filiais?codigo=eq.${P.fil}`, {method:'PATCH', body:JSON.stringify({liberada_equipe:v})}); fil.liberada_equipe = v;
       toast(v ? `${fil.nome} liberada: consultores e externos já podem lançar` : `${fil.nome} voltou a ficar só com você e o Gabriel`); desenharPed(); } catch(x) { toast(errTxt(x)); } };
   document.querySelectorAll('.acts button').forEach(b => b.onclick = () => acaoPed(b.dataset.a, +b.dataset.id));
+  if ($('.mv-d')) $('.mv-d').ontoggle = e => { S.mvAberto = e.target.open; };
   if (podeForm) ligarFormPed(R);
 }
 
+/* ---------- MINHAS VENDAS + RANKING (topo dos Pedidos do dia) ---------- */
+function rankVendas() {
+  const V = P.vend; if (!V || !V.carteiras) return [];
+  const dm = +V.dias_mes || 1, dd = Math.max(1, (+V.dias_ate_hoje || 1) - pesoDia(P.data));
+  const g = {};
+  V.carteiras.forEach(c => { const k = c.consultor || c.carteira; const x = g[k] = g[k] || {consultor:k, carts:[], conf:0, res:0, fat:0, meta:0, temMeta:false, cp:{}, rp:{}};
+    x.carts.push(c.carteira); x.conf += +c.conf_m3||0; x.res += +c.res_m3||0; x.fat += +c.fat_mes_m3||0;
+    if (c.meta_mes_m3 != null) { x.meta += +c.meta_mes_m3; x.temMeta = true; }
+    GORD.forEach(p => { x.cp[p] = (x.cp[p]||0) + (+(c.conf_prod||{})[p]||0); x.rp[p] = (x.rp[p]||0) + (+(c.res_prod||{})[p]||0); }); });
+  const L = Object.values(g).map(x => { const real = x.fat + x.conf; return {...x, real, pct: x.temMeta && x.meta ? 100*real/x.meta : null, proj: x.fat/dd*dm}; });
+  L.sort((a,b) => (b.pct != null) - (a.pct != null) || (b.pct||0) - (a.pct||0) || b.real - a.real);
+  let pos = 0; L.forEach(x => x.pos = x.pct != null ? ++pos : null); L.nRank = pos;
+  return L;
+}
+function pesoDia(d0) { const d = new Date(d0 + 'T12:00:00').getDay(); return d === 0 ? 0 : d === 6 ? 0.5 : 1; }
+function painelVendas() {
+  const V = P.vend; if (!V || !V.carteiras) return '';
+  const L = rankVendas(); if (!L.length) return '';
+  const minhas = new Set((S.me.usuario_carteiras || []).map(c => c.carteira_codigo));
+  const equipe = S.gestao || !minhas.size;
+  const meus = equipe ? L : L.filter(x => x.carts.some(c => minhas.has(c)));
+  if (!meus.length) return '';
+  const sum = k => meus.reduce((t, x) => t + (+x[k]||0), 0);
+  const conf = sum('conf'), res = sum('res'), fat = sum('fat'), meta = meus.filter(x => x.temMeta).reduce((t,x) => t + x.meta, 0);
+  const real = fat + conf, dm = +V.dias_mes || 1, dd = Math.max(1, (+V.dias_ate_hoje || 1) - pesoDia(P.data)), proj = fat/dd*dm;
+  const metaDia = meta ? meta/dm*pesoDia(P.data) : null;
+  const pctDia = metaDia ? 100*conf/metaDia : null, pctMes = meta ? 100*real/meta : null;
+  const cp = {}, rp = {}; GORD.forEach(p => { cp[p] = meus.reduce((t,x) => t + (x.cp[p]||0), 0)/1000; rp[p] = meus.reduce((t,x) => t + (x.rp[p]||0), 0)/1000; });
+  const quem = equipe ? 'Equipe' : (meus.length === 1 ? meus[0].consultor : (S.me.nome || '').split(' ')[0]);
+  const posTxt = !equipe && meus.length === 1 && meus[0].pos ? `<div class="mv-pos"><b>${meus[0].pos}º</b><span>de ${L.nRank} no ranking do mês</span></div>` : '';
+  const bar = p => `<div class="mv-bar"><i style="width:${Math.max(2, Math.min(100, p||0))}%"></i></div>`;
+  const fatAte = V.fat_ate ? dt(V.fat_ate) : '';
+  const res10 = V.reservas_validas ? 'válidas até 10:30' : 'encerradas às 10:30 — não contam';
+  const medal = i => i === 1 ? '🥇' : i === 2 ? '🥈' : i === 3 ? '🥉' : `${i}º`;
+  const eu = x => !equipe && x.carts.some(c => minhas.has(c));
+  const rank = `<div class="scroll"><table class="ptab mv-rank"><thead><tr><th>#</th><th>Consultor</th><th class="r">Hoje confirmados</th><th class="r">Hoje reservas</th><th class="r">Mês (m³)</th><th class="r">Meta do mês</th><th>% da meta</th><th class="r">Projeção</th></tr></thead><tbody>
+    ${L.map(x => `<tr class="${eu(x) ? 'eu' : ''}"><td class="mv-m">${x.pos ? medal(x.pos) : '—'}</td><td><b>${esc(x.consultor)}</b><small>${esc(x.carts.join(' + '))}</small></td>
+      <td class="r">${nf(x.conf,1)}</td><td class="r">${x.res ? nf(x.res,1) : '<span class="mut">—</span>'}</td><td class="r"><b>${nf(x.real)}</b></td><td class="r">${x.temMeta ? nf(x.meta) : '<span class="mut">sem meta</span>'}</td>
+      <td>${x.pct != null ? `<div class="mv-pc">${bar(x.pct)}<b>${nf(x.pct,0)}%</b></div>` : '<span class="mut">—</span>'}</td><td class="r">${nf(x.proj)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<section class="blk mv"><div class="bh"><div><h3>${equipe ? 'Vendas da equipe' : 'Minhas vendas'} · ${esc(quem)}</h3>
+      <p class="sub">Hoje = pedidos do dia, com confirmados e reservas contados separados (virados de ontem não entram). Mês = faturado no Qlik${fatAte ? ` até ${fatAte}` : ''} + confirmados de hoje.</p></div>${posTxt}</div>
+    <div class="mv-k">
+      <div><span>Confirmados hoje</span><b>${nf(conf,1)} m³</b>${metaDia ? `${bar(pctDia)}<em>${nf(pctDia,0)}% da meta do dia (${nf(metaDia)} m³)</em>` : '<em>sem meta cadastrada</em>'}</div>
+      <div><span>Reservas hoje</span><b>${nf(res,1)} m³</b><em>${res10}</em></div>
+      <div><span>Realizado no mês</span><b>${nf(real)} m³</b>${meta ? `${bar(pctMes)}<em>${nf(pctMes,0)}% da meta de ${nf(meta)} m³</em>` : '<em>sem meta cadastrada</em>'}</div>
+      <div><span>Projeção de fechamento</span><b>${nf(proj)} m³</b><em>${meta ? (proj >= meta ? '✅ no ritmo da meta' : `faltam ${nf(meta - proj)} m³ no ritmo até ontem`) : 'no ritmo até ontem'}</em></div>
+    </div>
+    <div class="scroll"><table class="ptab mv-prod"><thead><tr><th>Hoje por produto (m³)</th>${GORD.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+      <tr><td>Confirmados</td>${GORD.map(g => `<td class="r">${cp[g] ? nf(cp[g],1) : '<span class="mut">—</span>'}</td>`).join('')}</tr>
+      <tr><td>Reservas</td>${GORD.map(g => `<td class="r">${rp[g] ? nf(rp[g],1) : '<span class="mut">—</span>'}</td>`).join('')}</tr></tbody></table></div>
+    <details class="mv-d" ${S.mvAberto === false ? '' : 'open'}><summary>🏁 Ranking do mês · % da meta (confirmados de hoje já contam)</summary>${rank}</details>
+  </section>`;
+}
 function formPed(R, ts) {
   const t0 = P.tSel && ts.some(t => t.id === P.tSel) ? P.tSel : (ts[0] || {}).id;
   const t = ts.find(x => x.id === t0) || {grupos:[]};
