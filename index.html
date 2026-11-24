@@ -943,14 +943,14 @@ function desenharPed() {
     ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '<td class="r mut">—</td>'; const sd = (+l.cota||0) - (+l.usado||0); return sd < 0 && !R.resAberta ? `<td class="r"><b class="avn">+${nf(-sd)}</b><small>avançou · cota ${nf(l.cota)}</small></td>` : cel(l.cota, l.usado); }).join('')}</tr>`).join('')}</tbody></table>`
     : '<div class="empty">Nenhuma carteira sua tem peso nesta filial.</div>';
 
-  const podeForm = podeLancar() && (R.isHoje || (ehOp() && !R.passado));
+  const podeForm = podeLancar() && !R.passado;
   const form = podeForm ? formPed(R, ts) : '';
 
   const ord = {A:0, R:1, C:2, V:3, E:4, N:5, X:6};
   const peds = [...P.peds].sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
   const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
   const acoes = p => { const s = statusEf(p, R); const b = [];
-    const dono = podeLancar() && (ehOp() || S.carteiras.includes(p.carteira)) && R.isHoje;
+    const dono = podeLancar() && (ehOp() || S.carteiras.includes(p.carteira)) && !R.passado;
     if (s === 'A' && ehOp()) b.push(`<button class="btn sm ok" data-a="aut" data-id="${p.id}">Autorizar</button><button class="btn sm sec" data-a="neg" data-id="${p.id}">Negar</button>`);
     if ((dono && ['C','R','A','E'].includes(s)) || (ehOp() && ['C','R','A','E','V'].includes(s) && !p.virado)) b.push(`<button class="btn sm sec" data-a="edit" data-id="${p.id}">Editar</button>`);
     if ((s === 'R' || s === 'E') && dono) b.push(`<button class="btn sm" data-a="conf" data-id="${p.id}">Confirmar</button>`);
