@@ -187,6 +187,9 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .pqr:empty{display:none}.pqi{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:8px 12px;cursor:pointer;font:14px Inter,sans-serif}
 .pqi:hover,.pqi:focus-visible{background:#f3f6ff}.pqi small{display:block;color:var(--mut);font-size:12px}
 .tag.out{background:#fff1df;color:#a24c00;font-weight:700}
+.tag.gst{background:#e8ecf8;color:#1f3a8a;font-weight:700}
+.galert{background:#fdecea;border:1px solid #f3b8b3;color:#8f1f18;border-radius:12px;padding:10px 14px;margin:0 0 12px;font:500 13.5px Inter,sans-serif}.galert b{color:#b32a22}.galert ul{margin:6px 0 0 18px;padding:0}.galert small{display:block;color:#8f1f18;opacity:.8;margin-top:4px}
+.gok{background:#eef1f9;color:var(--mut);border-radius:12px;padding:8px 14px;margin:0 0 12px;font:500 13px Inter,sans-serif}
 .palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 .cobl{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}.cobi{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.cobi small{display:block;color:var(--mut)}
 .cobc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px;margin-top:6px}.cobc small{color:var(--mut)}
@@ -901,6 +904,7 @@ async function carregarPed() {
   P.painel = pn; P.peds = peds;
   try { P.vend = await rpc('painel_vendas_consultor', {p_data:P.data}); } catch(e) { P.vend = null; }
   if (ehOp()) { try { P.pend = await api('pedidos?status=eq.A&select=id,filial,data'); } catch(e) {} }
+  await carregarAlerta();
   desenharPed();
 }
 function relogio() {
@@ -917,6 +921,21 @@ const minhaCart = c => verTodas() || ehOp() || S.carteiras.includes(c);
 const outraCart = c => !ehOp() && !S.carteiras.includes(c);
 const tagOutra = (c, cons) => outraCart(c) ? ` <span class="tag out">⚠ carteira ${esc(c)}${cons ? ' · ' + esc(cons) : ''}</span>` : '';
 
+async function carregarAlerta() {
+  P.alerta = null;
+  if (!ehOp()) return;
+  try { P.alerta = await rpc('alerta_gestao', {p_data:P.data}); } catch(e) {}
+}
+const hm = t => t ? new Date(t).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'}) : '';
+function alertaGestao(fil) {
+  const A = P.alerta; if (!A || !A.ultima) return '';
+  const u = A.ultima; const neg = (A.negativos || []).filter(x => !fil || x.filial === fil);
+  const quando = `Última atualização do SICOF pela gestão às ${hm(u.em)}${u.sicof ? ` (dados do SICOF de ${hm(u.sicof)})` : ''}: ${u.inseridos} lançado(s), ${u.ajustados} ajustado(s), ${u.cancelados} cancelado(s).`;
+  if (!neg.length) return `<div class="gok">✓ ${quando} Nenhum estoque negativo por causa dela.</div>`;
+  return `<div class="galert">⚠ <b>Estoque negativo depois da atualização da gestão</b>
+    <ul>${neg.map(x => `<li>${esc(x.nome_filial)} · ${x.tipo === 'terminal' ? esc(x.terminal || '') : 'filial'} · <b>${GR[x.grupo] || esc(x.grupo)} ${nf(x.saldo)} L</b> <span class="mut">(gestão lançou ${nf(x.gestao)} L do SICOF)</span></li>`).join('')}</ul>
+    <small>${quando}</small></div>`;
+}
 function desenharPed() {
   const R = relogio(); const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
   const ts = P.terms.filter(t => t.filial === P.fil);
@@ -928,7 +947,7 @@ function desenharPed() {
   const avisos = `<div class="pclock">
     <span class="${R.resAberta ? 'on' : 'off'}">⏱ ${R.resAberta ? `Reservas abertas até 10:30 · faltam ${falta(630 - R.min)}` : (R.isHoje || R.passado ? 'Reservas encerradas · cotas abertas: pode avançar até o saldo livre da filial' : 'Reservas até 10:30')}</span>
     <span class="${R.bandAberta ? 'on' : 'off'}">🏁 ${R.bandAberta ? `Reserva das bandeiras até 14:00${R.isHoje ? ` · faltam ${falta(840 - R.min)}` : ''}` : 'Reserva das bandeiras liberada para as carteiras'}</span>
-    ${ehOp() && P.pend.length ? `<span class="warn">⚠ ${P.pend.length} pedido(s) aguardando sua autorização</span>` : ''}</div>`;
+    ${ehOp() && P.pend.length ? `<span class="warn">⚠ ${P.pend.length} pedido(s) aguardando sua autorização</span>` : ''}</div>${alertaGestao(P.fil)}`;
 
   const resumo = `<table class="ptab"><thead><tr><th>Produto</th><th class="r">Cota do dia</th><th class="r">Reserva bandeiras</th><th class="r">Lançado</th><th class="r">Saldo da filial</th><th class="r">Virados de ontem</th><th class="r">Sai hoje</th></tr></thead><tbody>
     ${gs.map(g => { const f = lin('filial','',g) || {}, rb = lin('reserva','',g) || {}, vr = lin('virado','',g) || {}; return `<tr><td><b>${GR[g]}</b></td><td class="r">${nf(f.cota)}</td>
@@ -950,7 +969,7 @@ function desenharPed() {
   const peds = [...P.peds].sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
   const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
   const acoes = p => { const s = statusEf(p, R); const b = [];
-    const dono = podeLancar() && (ehOp() || S.carteiras.includes(p.carteira)) && !R.passado;
+    const dono = podeLancar() && (ehOp() || (S.carteiras.includes(p.carteira) && p.origem !== 'gestao')) && !R.passado;
     if (s === 'A' && ehOp()) b.push(`<button class="btn sm ok" data-a="aut" data-id="${p.id}">Autorizar</button><button class="btn sm sec" data-a="neg" data-id="${p.id}">Negar</button>`);
     if ((dono && ['C','R','A','E'].includes(s)) || (ehOp() && ['C','R','A','E','V'].includes(s) && !p.virado)) b.push(`<button class="btn sm sec" data-a="edit" data-id="${p.id}">Editar</button>`);
     if ((s === 'R' || s === 'E') && dono) b.push(`<button class="btn sm" data-a="conf" data-id="${p.id}">Confirmar</button>`);
@@ -961,10 +980,10 @@ function desenharPed() {
   const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
     ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
       return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
-      <td><b>${esc(p.cliente_nome)}</b>${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
+      <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
         ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
       <td>${esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
-      <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
+      <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${p.origem === 'gestao' ? ' · Gestão' : P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
       <td class="acts">${acoes(p)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum pedido lançado nesta filial neste dia.</div>';
 
   $('#app').innerHTML = hdrPed() + `<main class="eq ped">${painelVendas()}
@@ -1382,6 +1401,7 @@ function ligarSegModo() {
 async function atualizarPed() { if (P.modo === 'geral') await carregarGeral(); else await carregarPed(); }
 async function carregarGeral() {
   P.geral = await rpc('monitor_vendas', {p_data:P.data});
+  await carregarAlerta();
   desenharGeral();
 }
 function desenharGeral() {
@@ -1418,6 +1438,7 @@ function desenharGeral() {
         <div class="st ${tot.cota - tot.lanc < 0 ? 'ok' : ''}"><b>${nf(tot.cota - tot.lanc)}</b><span>Saldo cota dia</span></div>
         <div class="st"><b>${pct(tot.lanc, tot.meta)}</b><span>da meta do dia</span></div>
       </div>
+      ${alertaGestao(null)}
       <div class="mgrid">${fils.map(card).join('') || '<div class="empty">Nenhuma filial com meta ou cota para este dia.</div>'}</div>
     </section></main>`;
   ligarHdrPed(); ligarSegModo();
