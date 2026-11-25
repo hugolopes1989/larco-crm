@@ -188,6 +188,7 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .pqi:hover,.pqi:focus-visible{background:#f3f6ff}.pqi small{display:block;color:var(--mut);font-size:12px}
 .tag.out{background:#fff1df;color:#a24c00;font-weight:700}
 .tag.gst{background:#e8ecf8;color:#1f3a8a;font-weight:700}
+.fat-t{margin:14px 0 6px;font:700 15px Inter,sans-serif}.fat-t small{font-weight:500;color:var(--mut);margin-left:6px}.ptab tr.tot td{border-top:2px solid #d6dbea}
 .galert{background:#fdecea;border:1px solid #f3b8b3;color:#8f1f18;border-radius:12px;padding:10px 14px;margin:0 0 12px;font:500 13.5px Inter,sans-serif}.galert b{color:#b32a22}.galert ul{margin:6px 0 0 18px;padding:0}.galert small{display:block;color:#8f1f18;opacity:.8;margin-top:4px}
 .gok{background:#eef1f9;color:var(--mut);border-radius:12px;padding:8px 14px;margin:0 0 12px;font:500 13px Inter,sans-serif}
 .palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
@@ -281,6 +282,7 @@ async function iniciar() {
   const me = await api(`usuarios?id=eq.${S.user.id}&select=*,usuario_carteiras(carteira_codigo)`);
   if (!me.length) return telaLogin('Usuário sem cadastro no CRM. Fale com o supervisor.');
   S.me = me[0];
+  if (S.me.perfil === 'faturamento') return telaFaturamento();
   S.resumo = await api('v_carteira_resumo?select=*&order=carteira_codigo');
   const todas = ['supervisor','gerente_corp'].includes(S.me.perfil); S.podeMeta = todas; S.gestao = todas || S.me.perfil === 'gerente';
   S.cobre = {};
@@ -1386,6 +1388,77 @@ async function abrirMetasMes(mesIni) {
     try { const r = await rpc('aplicar_metas', {p_mes:mes}); d.remove(); toast(`Aplicado: pesos das carteiras e Meta Dia Plan valem a partir de ${dt(mes)}.`); await atualizarPed(); }
     catch(x) { msg.textContent = errTxt(x); }
   };
+}
+
+/* ---------- FATURAMENTO (usuários das bases) ---------- */
+const F = { fils:[], terms:[], fil:null, data:null, peds:[], timer:null, em:null };
+async function telaFaturamento() {
+  S.view = 'fat';
+  $('#app').innerHTML = hdrFat() + '<main class="eq ped"><div class="empty">Carregando…</div></main>'; ligarHdrFat();
+  try {
+    const cods = (await api(`usuario_filiais?usuario_id=eq.${S.me.id}&select=filial`)).map(x => x.filial);
+    F.fils = cods.length ? await api(`filiais?codigo=in.(${cods.join(',')})&order=ordem`) : [];
+    F.terms = await api('terminais?ativo=eq.true&order=filial,ordem');
+  } catch(e) { F.fils = []; }
+  if (!F.fils.length) { $('main.ped').innerHTML = '<div class="empty">Seu usuário ainda não tem base vinculada. Fale com o Hugo.</div>'; return; }
+  if (!F.fils.some(f => f.codigo === F.fil)) F.fil = F.fils[0].codigo;
+  F.data = F.data || iso(hojeSP());
+  await carregarFat();
+  clearInterval(F.timer);
+  F.timer = setInterval(() => { if (S.view === 'fat') carregarFat(); }, 60000);
+}
+function hdrFat() {
+  return `<header><button type="button" class="brand home" id="bHome" title="Voltar para hoje"><img class="lgimg" src="${LOGO_W}" alt="Larco"><span class="crm">CRM</span></button><h1>Faturamento</h1><span class="sp"></span>
+    <span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
+}
+function ligarHdrFat() {
+  $('#bSair').onclick = () => { clearInterval(F.timer); S.view = null; sair(); };
+  $('#bHome').onclick = () => { F.data = iso(hojeSP()); carregarFat(); };
+}
+async function carregarFat() {
+  try {
+    F.peds = await api(`pedidos?data=eq.${F.data}&filial=eq.${F.fil}&status=in.(C,V,R,A)&virado=eq.false&select=id,terminal_id,carteira,cliente_nome,status,gas,gas_ad,eta,s10,s10_ad,s500,s500_ad,observacao,criado_em,origem,pedido_sicof&order=criado_em`);
+    F.em = new Date();
+  } catch(e) { $('main.ped').innerHTML = `<div class="empty">Não foi possível carregar os pedidos: ${esc(errTxt(e))}</div>`; return; }
+  desenharFat();
+}
+function desenharFat() {
+  const hoje = iso(hojeSP());
+  const agoraMin = (() => { const t = new Date().toLocaleTimeString('pt-BR', {timeZone:'America/Recife', hour:'2-digit', minute:'2-digit', hour12:false}).split(':'); return +t[0] * 60 + +t[1]; })();
+  const resValida = F.data > hoje || (F.data === hoje && agoraMin < 630);
+  const peds = F.peds.filter(p => p.status !== 'R' || resValida);
+  const ts = F.terms.filter(t => t.filial === F.fil);
+  const fil = F.fils.find(f => f.codigo === F.fil) || {};
+  const cols = PRODS.filter(([k]) => peds.some(p => +p[k]));
+  const soma = (lst, k) => lst.reduce((a, p) => a + (+p[k] || 0), 0);
+  const tot = p => PRODS.reduce((a, [k]) => a + (+p[k] || 0), 0);
+  const prox = (() => { const d = new Date(hoje + 'T12:00:00'); d.setDate(d.getDate() + (d.getDay() === 6 ? 2 : 1)); return iso(d); })();
+  const STF = {C:['Confirmado','ok'], V:['Virado de ontem','vir'], R:['Reserva (até 10:30)','rsv'], A:['Aguardando autorização','aut']};
+  const linhaT = t => { const L = peds.filter(p => p.terminal_id === t.id); if (!L.length) return '';
+    const ok = L.filter(p => p.status !== 'A'), aut = L.filter(p => p.status === 'A');
+    return `<tr><td><b>${esc(t.nome)}</b>${aut.length ? `<small>+ ${nf(aut.reduce((a,p) => a + tot(p), 0))} L aguardando autorização</small>` : ''}</td>${cols.map(([k]) => `<td class="r">${soma(ok,k) ? `<b>${nf(soma(ok,k))}</b>` : '<span class="mut">—</span>'}</td>`).join('')}<td class="r"><b>${nf(ok.reduce((a,p) => a + tot(p), 0))}</b></td><td class="r">${ok.length}</td></tr>`; };
+  const okAll = peds.filter(p => p.status !== 'A');
+  const matriz = cols.length ? `<table class="ptab"><thead><tr><th>Terminal</th>${cols.map(([,n]) => `<th class="r">${n}</th>`).join('')}<th class="r">Total (L)</th><th class="r">Pedidos</th></tr></thead><tbody>
+    ${ts.map(linhaT).join('')}
+    <tr class="tot"><td><b>Total da base</b></td>${cols.map(([k]) => `<td class="r"><b>${nf(soma(okAll,k))}</b></td>`).join('')}<td class="r"><b>${nf(okAll.reduce((a,p) => a + tot(p), 0))}</b></td><td class="r"><b>${okAll.length}</b></td></tr></tbody></table>`
+    : '<div class="empty">Nenhum pedido lançado para esta base neste dia.</div>';
+  const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
+  const lista = ts.map(t => { const L = peds.filter(p => p.terminal_id === t.id); if (!L.length) return '';
+    return `<h3 class="fat-t">${esc(t.nome)} <small>${L.length} pedido(s)</small></h3><div class="scroll"><table class="ptab plist"><thead><tr><th>Hora</th><th>Cliente</th><th>Carteira</th><th>Volumes (L)</th><th>Situação</th></tr></thead><tbody>
+      ${L.map(p => `<tr class="st-${p.status}"><td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}</small></td>
+        <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst">SICOF${p.pedido_sicof ? ' ' + esc(p.pedido_sicof) : ''}</span>` : ''}</td>
+        <td>${esc(p.carteira)}</td><td>${prodTxt(p)}</td><td><span class="stp ${STF[p.status][1]}">${STF[p.status][0]}</span></td></tr>`).join('')}</tbody></table></div>`; }).join('');
+  const chips = F.fils.length > 1 ? `<div class="chips" id="chFat">${F.fils.map(f => `<button data-f="${f.codigo}" class="${f.codigo === F.fil ? 'on' : ''}">${esc(f.nome)}</button>`).join('')}</div>` : '';
+  $('#app').innerHTML = hdrFat() + `<main class="eq ped">
+    <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(F.data)}</h3>
+      <p class="sub">Pedidos lançados no CRM para sair desta base, por terminal e produto (litros). Conta confirmados, virados de ontem e reservas ainda válidas; os que aguardam autorização aparecem à parte. Atualizado às ${F.em ? F.em.toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'}) : ''}, atualiza sozinho a cada minuto.</p></div>
+      <div class="bh-r">${chips}<div class="seg" id="segDia"><button data-d="${hoje}" class="${F.data === hoje ? 'on' : ''}">Hoje</button><button data-d="${prox}" class="${F.data === prox ? 'on' : ''}">Próximo dia</button></div><input type="date" id="fData" value="${F.data}" aria-label="Data"></div></div>
+      ${matriz}</section>
+    <section class="blk"><div class="bh"><div><h3>Pedidos por terminal</h3></div></div>${lista || '<div class="empty">Nenhum pedido.</div>'}</section></main>`;
+  ligarHdrFat();
+  document.querySelectorAll('#chFat button').forEach(b => b.onclick = () => { F.fil = b.dataset.f; carregarFat(); });
+  document.querySelectorAll('#segDia button').forEach(b => b.onclick = () => { F.data = b.dataset.d; carregarFat(); });
+  $('#fData').onchange = e => { if (e.target.value) { F.data = e.target.value; carregarFat(); } };
 }
 
 /* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
