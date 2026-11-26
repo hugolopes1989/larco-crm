@@ -999,6 +999,7 @@ function calcMetas(D, P) {
   // 1) metas individuais por célula
   Object.values(cel).forEach(x => {
     if (x.cart === '(sem carteira)' || x.cart === '(sem vendedor)') { x.meta = 0; x.regra = 'ignorada'; return; }
+    if (sumMF(MF, x.fil) > 0 && !(MF[x.fil+'|'+x.col] > 0)) { x.meta = 0; x.regra = 'ignorada'; return; } // produto que a filial não trabalha (ex.: S500 em Suape)
     if (x.outra) { x.g = P.fxOutras; x.meta = x.base * (1 + P.fxOutras/100); x.regra = 'outras'; return; }
     if (trio.has(x.cart) && (x.fil === '16' || x.fil === '24')) { x.regra = 'trio'; x.meta = 0; return; }
     const fx = faixa(x.cart); x.g = fx.g; x.meta = x.base * (1 + fx.g/100); x.regra = fx.k;
@@ -1009,7 +1010,7 @@ function calcMetas(D, P) {
   const trioNov = [...trio].reduce((s,c) => s + (ant[c]||0), 0);
   const complPad = Math.max(0, Math.round(trioNov - sumMF(MFA, '24')));
   const compl = (P.compl == null || P.compl === '') ? complPad : +P.compl;
-  const foraCab = p => Object.values(cel).filter(x => x.outra && x.fil === '24' && x.col === p).reduce((s,x) => s + x.meta, 0);
+  const foraCab = p => Object.values(cel).filter(x => x.fil === '24' && x.col === p && x.regra && x.regra !== 'trio' && x.regra !== 'ignorada').reduce((s,x) => s + (x.meta||0), 0); // carteiras de fora e da equipe que não são do trio
   const tcBase = Object.values(cel).filter(x => x.regra === 'trio');
   const trioSuape = tcBase.filter(x => x.fil === '16' && (MF['16|'+x.col]||0) > 0); const trioSuapeT = trioSuape.reduce((s,x) => s + x.base, 0);
   // alvo por produto: Cabedelo (menos fora) + complemento repartido pelo mix do trio em Suape
