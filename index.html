@@ -306,6 +306,7 @@ body.noel .btn:not(.sec){box-shadow:0 0 0 2px rgba(255,204,0,.0),0 3px 10px rgba
 .mtt tr.mtsubt td{background:#f5f7fd;border-bottom:2px solid var(--line)}.mtt tr.mtsep td{font:700 12px Inter,sans-serif;color:var(--or);text-transform:uppercase;letter-spacing:.04em;padding-top:14px}
 .mtres{border:2px solid var(--g);border-radius:16px;padding:14px 16px;margin-bottom:16px;background:linear-gradient(180deg,#f7f9ff,#fff)}.mtres h4{margin:0 0 8px;font:800 16px Poppins,sans-serif;color:var(--g)}.mtres .sub{font-size:12px;color:var(--mut);margin:8px 0 0}
 .mtt .okp{color:var(--ok);font-weight:700;font-size:12px}.mtt .wp{color:#a35a00;font-weight:700;font-size:12px}
+.mtt .gst{color:#c25700;font-weight:800}.tag.ok{background:#e3f6ea;color:#11643a}.mtt tr.mtgest td{background:#fff4e5;border-bottom:1px solid #f6c98b}
 </style>
 </head>
 <body>
@@ -955,110 +956,107 @@ const ehOp = () => S.me.perfil === 'supervisor';
 const verTodas = () => ['supervisor','gerente_corp'].includes(S.me.perfil);
 const errTxt = e => { try { return JSON.parse(e.message).message || e.message; } catch(x) { return e.message; } };
 
-// Motor do simulador de metas (Larco CRM). Usado no navegador e no teste com node.
+// Motor do simulador de metas (Larco CRM) — meta individual + meta da gestão.
 const MT_FIL = ['16','24','17','38','29','32'];
 const MT_COL = ['GAS','ETA','S10','S500'];
-const MT_PAR0 = { pesoH:40, pesoP:25, pesoR:20, pesoN:15, saz:0, teto:30, convR:30, convN:5,
-  wSet:25, wOut:35, wNov:40, piso:1, fixas:'PE EMB01', piRaio:100, piConv:10, piMax:200, piFil:'17' };
+const MT_PAR0 = { wSet:25, wOut:35, wNov:40,
+  fxA:15, fxB:10, fxC:5, fxSem:10, fxOutras:5, ma04Reat:30,
+  trio:'PB 01, RN 01, CE 01', compl:null, fixas:'PE EMB01',
+  piRaio:100, piConv:10, piMax:200, piFil:'17' };
 
 function calcMetas(D, P) {
   P = Object.assign({}, MT_PAR0, P || {});
   const mes = D.mes; const y = +mes.slice(0,4), m = +mes.slice(5,7);
   const ym = k => { const d = new Date(y, m - 1 - k, 1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); };
-  const mN = ym(1), mO = ym(2), mS = ym(3), mA = ym(12);
-  // fator de projeção do mês corrente (dados até ultimo_dia)
+  const mN = ym(1), mO = ym(2), mS = ym(3);
   const ud = new Date(D.ultimo_dia + 'T12:00:00'); const diasMes = new Date(y, m - 1, 0).getDate();
   const fNov = (ud.getMonth()+1 === (m === 1 ? 12 : m - 1)) ? diasMes / ud.getDate() : 1;
   const K = (c,f,p) => c + '|' + f + '|' + p;
-  const cel = {}; const get = (c,f,p) => cel[K(c,f,p)] || (cel[K(c,f,p)] = {cart:c, fil:f, col:p, S:0, O:0, N:0, A:0, reat:0, nReat:0});
+  const cel = {}; const get = (c,f,p) => cel[K(c,f,p)] || (cel[K(c,f,p)] = {cart:c, fil:f, col:p, S:0, O:0, N:0, reat:0});
   const temOutras = (D.outras||[]).length > 0;
-  const linhasM = (D.mensal||[]).filter(r => !(temOutras && r.cart === '(sem carteira)'))
-    .concat((D.outras||[]).map(r => Object.assign({}, r, {outra:true})));
-  linhasM.forEach(r => { const x = get(r.cart, r.fil, r.col); if (r.outra) x.outra = true; const v = +r.m3||0;
-    if (r.mes === mS) x.S += v; else if (r.mes === mO) x.O += v; else if (r.mes === mN) x.N += v; else if (r.mes === mA) x.A += v; });
-  (D.inativos||[]).forEach(r => { const x = get(r.cart, r.fil, r.col); x.reat += +r.m3||0; x.nReat += +r.n||0; });
+  (D.mensal||[]).filter(r => !(temOutras && r.cart === '(sem carteira)')).concat((D.outras||[]).map(r => Object.assign({}, r, {outra:true})))
+    .forEach(r => { const x = get(r.cart, r.fil, r.col); if (r.outra) x.outra = true; const v = +r.m3||0;
+      if (r.mes === mS) x.S += v; else if (r.mes === mO) x.O += v; else if (r.mes === mN) x.N += v; });
+  (D.inativos||[]).forEach(r => { get(r.cart, r.fil, r.col).reat += +r.m3||0; });
   const wt = (P.wSet + P.wOut + P.wNov) || 1;
-  Object.values(cel).forEach(x => { x.Nproj = x.N * fNov; x.med = (x.S + x.O + x.Nproj) / 3; x.base = (P.wSet*x.S + P.wOut*x.O + P.wNov*x.Nproj) / wt; x.baseS = x.base * (1 + P.saz/100); });
+  Object.values(cel).forEach(x => { x.Nproj = x.N * fNov; x.med = (x.S + x.O + x.Nproj) / 3; x.base = (P.wSet*x.S + P.wOut*x.O + P.wNov*x.Nproj) / wt; });
 
-  // zona do PI 01 no MA (prospects perto de Teresina)
+  // desempenho em novembro (projeção / meta) por carteira da equipe
+  const ant = {}; (D.metas_ant||[]).forEach(r => ant[r.cart] = +r.meta_m3);
+  const projN = {}; Object.values(cel).forEach(x => { if (!x.outra) projN[x.cart] = (projN[x.cart]||0) + x.Nproj; });
+  const fixas = new Set(String(P.fixas||'').split(',').map(s => s.trim()).filter(Boolean));
+  const trio = new Set(String(P.trio||'').split(',').map(s => s.trim()).filter(Boolean));
+  const faixa = c => {
+    if (fixas.has(c)) return {k:'fixa', g:0, txt:'fixa'};
+    if (!ant[c]) return {k:'sem', g:P.fxSem, txt:'sem meta em nov'};
+    const a = 100 * (projN[c]||0) / ant[c];
+    return a >= 100 ? {k:'A', g:P.fxA, a, txt:'≥100% em nov'} : a >= 90 ? {k:'B', g:P.fxB, a, txt:'90–100% em nov'} : {k:'C', g:P.fxC, a, txt:'<90% em nov'};
+  };
+  const MF = {}; (D.meta_filial||[]).forEach(r => MF[r.fil+'|'+r.col] = +r.m3);
+  const MFA = {}; (D.meta_filial_ant||[]).forEach(r => MFA[r.fil+'|'+r.col] = +r.m3);
+  const sumMF = (o, f) => MT_COL.reduce((s,p) => s + (o[f+'|'+p]||0), 0);
+
+  // 1) metas individuais por célula
+  Object.values(cel).forEach(x => {
+    if (x.cart === '(sem carteira)' || x.cart === '(sem vendedor)') { x.meta = 0; x.regra = 'ignorada'; return; }
+    if (x.outra) { x.g = P.fxOutras; x.meta = x.base * (1 + P.fxOutras/100); x.regra = 'outras'; return; }
+    if (trio.has(x.cart) && (x.fil === '16' || x.fil === '24')) { x.regra = 'trio'; x.meta = 0; return; }
+    const fx = faixa(x.cart); x.g = fx.g; x.meta = x.base * (1 + fx.g/100); x.regra = fx.k;
+    if (x.cart === 'MA 04') { x.meta += x.reat * P.ma04Reat / 100; x.regra = 'reat'; }
+  });
+
+  // 2) trio de Cabedelo: divide a meta de Cabedelo (menos as carteiras de fora) + complemento por Ipojuca
+  const trioNov = [...trio].reduce((s,c) => s + (ant[c]||0), 0);
+  const complPad = Math.max(0, Math.round(trioNov - sumMF(MFA, '24')));
+  const compl = (P.compl == null || P.compl === '') ? complPad : +P.compl;
+  const foraCab = p => Object.values(cel).filter(x => x.outra && x.fil === '24' && x.col === p).reduce((s,x) => s + x.meta, 0);
+  const tcBase = Object.values(cel).filter(x => x.regra === 'trio');
+  const trioSuape = tcBase.filter(x => x.fil === '16' && (MF['16|'+x.col]||0) > 0); const trioSuapeT = trioSuape.reduce((s,x) => s + x.base, 0);
+  // alvo por produto: Cabedelo (menos fora) + complemento repartido pelo mix do trio em Suape
+  const alvoCab = {}, alvoSua = {}; MT_COL.forEach(p => { alvoCab[p] = Math.max(0, (MF['24|'+p]||0) - foraCab(p));
+    alvoSua[p] = trioSuapeT ? compl * trioSuape.filter(x => x.col === p).reduce((s,x) => s + x.base, 0) / trioSuapeT : 0; });
+  const tArr = [...trio]; const seed = {}; let somaB = 0;
+  tArr.forEach(c => { seed[c] = {}; MT_COL.forEach(p => { const b = tcBase.filter(x => x.cart === c && x.col === p).reduce((s,x) => s + x.base, 0); seed[c][p] = b; somaB += b; }); });
+  const alvoP = p => alvoCab[p] + alvoSua[p]; const alvoT = MT_COL.reduce((s,p) => s + alvoP(p), 0);
+  // todas crescem o mesmo % no total (participação no bloco); ajuste por produto com RAS
+  const totC = {}; tArr.forEach(c => totC[c] = somaB ? alvoT * MT_COL.reduce((s,p) => s + seed[c][p], 0) / somaB : alvoT / tArr.length);
+  const M = {}; tArr.forEach(c => { M[c] = {}; MT_COL.forEach(p => M[c][p] = seed[c][p] || (alvoP(p) > 0 ? 0.01 : 0)); });
+  for (let it = 0; it < 40; it++) {
+    MT_COL.forEach(p => { const s = tArr.reduce((a,c) => a + M[c][p], 0); if (s > 0) tArr.forEach(c => M[c][p] *= alvoP(p) / s); });
+    tArr.forEach(c => { const s = MT_COL.reduce((a,p) => a + M[c][p], 0); if (s > 0) MT_COL.forEach(p => M[c][p] *= totC[c] / s); });
+  }
+  MT_COL.forEach(p => { const s = tArr.reduce((a,c) => a + M[c][p], 0); if (s > 0) tArr.forEach(c => M[c][p] *= alvoP(p) / s); });
+  tArr.forEach(c => MT_COL.forEach(p => { const v = M[c][p]; if (!(v > 0.01)) return; const ap = alvoP(p) || 1;
+    [['24', alvoCab[p]], ['16', alvoSua[p]]].forEach(([f, alvo]) => { const parte = v * alvo / ap; if (parte <= 0.01) return;
+      const x = get(c, f, p); if (!x.regra) { x.Nproj = 0; x.med = 0; x.base = 0; } x.regra = 'trio'; x.meta = parte; }); }));
+  // 3) cota PI 01 no MA
   const zona = (D.zona_pi||[]).filter(z => +z.km <= P.piRaio && z.cart !== 'PI 01');
   const zonaVmm = zona.reduce((s,z) => s + (+z.vmm||0), 0);
   const zonaPorCart = {}; zona.forEach(z => { const c = z.cart || '(sem carteira)'; zonaPorCart[c] = zonaPorCart[c] || {n:0, vmm:0}; zonaPorCart[c].n++; zonaPorCart[c].vmm += +z.vmm||0; });
   const cotaPI = Math.min(P.piMax, zonaVmm * P.piConv / 100);
+  const linhas = Object.values(cel).filter(x => x.regra && x.regra !== 'ignorada' && MT_FIL.includes(x.fil));
+  if (cotaPI > 0 && sumMF(MF, P.piFil) > 0) MT_COL.forEach(p => { const v = cotaPI * (MF[P.piFil+'|'+p]||0) / sumMF(MF, P.piFil); if (v > 0) linhas.push({cart:'PI 01', fil:P.piFil, col:p, base:0, med:0, Nproj:0, meta:v, regra:'cota', cotaPI:true}); });
 
-  // métricas por carteira, repartidas por filial×produto pelo mix da carteira
-  const CM = {}; (D.carteira||[]).forEach(r => CM[r.cart] = Object.assign({}, r));
-  Object.entries(zonaPorCart).forEach(([c,z]) => { if (CM[c]) { CM[c].prospects -= z.n; CM[c].vmm_prospects -= z.vmm; } });
-  const mix = {};
-  Object.values(cel).forEach(x => { mix[x.cart] = mix[x.cart] || {b:{}, r:{}, tb:0, tr:0}; const k = x.fil+'|'+x.col; mix[x.cart].b[k] = x.base; mix[x.cart].tb += x.base; mix[x.cart].r[k] = x.reat; mix[x.cart].tr += x.reat; });
-  const share = (c,f,p) => { const mx = mix[c]; if (!mx) return 0; const k = f+'|'+p; return mx.tb > 0 ? (mx.b[k]||0)/mx.tb : mx.tr > 0 ? (mx.r[k]||0)/mx.tr : 0; };
-
-  const fixas = new Set(String(P.fixas||'').split(',').map(s => s.trim()).filter(Boolean)); fixas.add('(sem carteira)');
-  const MF = {}; (D.meta_filial||[]).forEach(r => MF[r.fil+'|'+r.col] = +r.m3);
-  const mfTotFil = f => MT_COL.reduce((s,p) => s + (MF[f+'|'+p]||0), 0);
-  const linhas = []; const checks = [];
-  MT_FIL.forEach(f => MT_COL.forEach(p => {
-    const meta = MF[f+'|'+p] || 0;
-    const xs = Object.values(cel).filter(x => x.fil === f && x.col === p);
-    // cota PI 01 (fixa)
-    let cota = 0;
-    if (f === P.piFil && cotaPI > 0 && mfTotFil(f) > 0) cota = cotaPI * meta / mfTotFil(f);
-    const fixo = xs.filter(x => fixas.has(x.cart)); const flex = xs.filter(x => !fixas.has(x.cart));
-    flex.forEach(x => { const cm = CM[x.cart] || {}; const sh = share(x.cart, f, p);
-      x.pot = (+cm.pot_ativos||0) * sh; x.prosp = (+cm.vmm_prospects||0) * sh; });
-    // carteiras sem venda na filial mas com reativação já aparecem em xs via inativos
-    const somaFixo = fixo.reduce((s,x) => s + x.baseS, 0) + cota;
-    const somaBase = flex.reduce((s,x) => s + x.baseS, 0);
-    const gap = meta - somaFixo - somaBase;
-    fixo.forEach(x => { x.meta = x.baseS; x.cresc = 0; x.comp = {H:0,P:0,R:0,N:0}; x.fixa = true; });
-    flex.forEach(x => { x.cresc = 0; x.comp = {H:0,P:0,R:0,N:0}; x.acimaTeto = false; });
-    if (meta <= 0) { xs.forEach(x => { x.meta = 0; x.cresc = -x.baseS; }); }
-    else if (gap < 0) {
-      // meta da filial abaixo da base: corta o efeito dezembro primeiro; com piso, ninguém fica abaixo do que já vende
-      const alvo = meta - somaFixo; const somaB0 = flex.reduce((s,x) => s + x.base, 0);
-      if (P.piso && alvo <= somaB0) flex.forEach(x => { x.meta = x.base; x.abaixo = true; });
-      else if (alvo >= somaB0) { const t = somaBase - somaB0 ? (alvo - somaB0) / (somaBase - somaB0) : 0; flex.forEach(x => { x.meta = x.base + (x.baseS - x.base) * t; }); }
-      else { const f0 = somaB0 > 0 ? Math.max(0, alvo / somaB0) : 0; flex.forEach(x => { x.meta = x.base * f0; }); }
-      flex.forEach(x => { x.cresc = x.meta - x.baseS; });
-    } else {
-      const tot = k => flex.reduce((s,x) => s + (x[k]||0), 0);
-      const T = {H: tot('baseS'), P: tot('pot'), R: tot('reat'), N: tot('prosp')};
-      const W = {H:P.pesoH, P:P.pesoP, R:P.pesoR, N:P.pesoN};
-      flex.forEach(x => { x.parc = {H: T.H ? x.baseS/T.H : 0, P: T.P ? x.pot/T.P : 0, R: T.R ? x.reat/T.R : 0, N: T.N ? x.prosp/T.N : 0};
-        x.score = Object.keys(W).reduce((s,k) => s + W[k]*x.parc[k], 0);
-        x.cap = x.baseS*P.teto/100 + x.reat*P.convR/100 + x.prosp*P.convN/100; });
-      // distribuição com teto (water-filling)
-      let rest = gap; let ativos = flex.filter(x => x.score > 0 && x.cap > 0);
-      for (let it = 0; it < 30 && rest > 1e-6 && ativos.length; it++) {
-        const sS = ativos.reduce((s,x) => s + x.score, 0); let usado = 0;
-        ativos.forEach(x => { const q = Math.min(rest * x.score / sS, x.cap - x.cresc); x.cresc += q; usado += q; });
-        rest -= usado; ativos = ativos.filter(x => x.cap - x.cresc > 1e-6);
-        if (usado < 1e-9) break;
-      }
-      if (rest > 1e-6) { // o que sobrou passa do teto: reparte pelo score para fechar a meta
-        const sS = flex.reduce((s,x) => s + (x.score||0), 0) || flex.reduce((s,x) => s + x.baseS, 0) || 1;
-        flex.forEach(x => { const q = rest * ((sS && flex.some(y => y.score)) ? (x.score||0) : x.baseS) / sS; if (q > 0.01) { x.cresc += q; x.acimaTeto = true; } });
-      }
-      flex.forEach(x => { x.meta = x.baseS + x.cresc; const s = x.score || 0;
-        Object.keys(W).forEach(k => x.comp[k] = s ? x.cresc * W[k]*x.parc[k] / s : 0); });
-    }
-    xs.forEach(x => linhas.push(x));
-    if (cota > 0) linhas.push({cart:'PI 01', fil:f, col:p, S:0,O:0,N:0,A:0,Nproj:0,base:0,baseS:0,reat:0,pot:0,prosp:0, meta:cota, cresc:cota, comp:{H:0,P:0,R:0,N:cota}, cotaPI:true});
-    const aloc = xs.reduce((s,x) => s + (x.meta||0), 0) + cota;
-    checks.push({excesso: Math.max(0, xs.reduce((s,x)=>s+(x.meta||0),0)+cota-meta), fil:f, col:p, meta, base: somaBase + fixo.reduce((s,x)=>s+x.baseS,0), gap, aloc, cota, acimaTeto: flex.filter(x=>x.acimaTeto).map(x=>x.cart)});
+  // 4) fechamento por filial × produto: meta da gestão = meta REG3 − carteiras
+  const checks = []; MT_FIL.forEach(f => MT_COL.forEach(p => {
+    const ls = linhas.filter(x => x.fil === f && x.col === p);
+    const meta = MF[f+'|'+p]||0, metaAnt = MFA[f+'|'+p]||0;
+    const nos = ls.filter(x => !x.outra).reduce((s,x) => s + x.meta, 0), fora = ls.filter(x => x.outra).reduce((s,x) => s + x.meta, 0);
+    const base = ls.reduce((s,x) => s + x.base, 0);
+    if (meta || base) checks.push({fil:f, col:p, meta, metaAnt, base, nos, fora, gestao: meta - nos - fora});
   }));
 
-  // consolidado por carteira
+  // 5) consolidado por carteira
   const CAR = {}; (D.carteiras||[]).forEach(c => CAR[c.codigo] = c);
-  const ant = {}; (D.metas_ant||[]).forEach(r => ant[r.cart] = +r.meta_m3);
   const porCart = {};
-  linhas.forEach(x => { const c = porCart[x.cart] = porCart[x.cart] || {outra:!!x.outra, cart:x.cart, nome:(CAR[x.cart]||{}).consultor_nome||'', base:0, baseS:0, meta:0, cresc:0, H:0,P:0,R:0,N:0, A:0, Nproj:0, O:0, metaAnt: ant[x.cart]||0, acimaTeto:false, fixa:!!x.fixa, cotaPI:0, linhas:[]};
-    c.base += x.base; c.med = (c.med||0) + (x.med||0); c.baseS += x.baseS; c.meta += x.meta||0; c.cresc += (x.meta||0) - x.baseS; c.A += x.A; c.Nproj += x.Nproj; c.O += x.O;
-    ['H','P','R','N'].forEach(k => c[k] += (x.comp||{})[k]||0); if (x.acimaTeto) c.acimaTeto = true; if (x.cotaPI) c.cotaPI += x.meta; c.linhas.push(x); });
-  Object.values(porCart).forEach(c => { const cm = CM[c.cart] || {}; c.ativos = cm.ativos||0; c.inativos = cm.inativos||0; c.prospects = cm.prospects||0; c.potAtivos = +cm.pot_ativos||0; c.vmmProsp = +cm.vmm_prospects||0; });
-  const cartList = Object.values(porCart).sort((a,b) => b.meta - a.meta);
-  return {P, fNov, meses:{S:mS,O:mO,N:mN,A:mA}, linhas, checks, cartList, zona, zonaVmm, zonaPorCart, cotaPI,
-    totMeta: checks.reduce((s,c)=>s+c.meta,0), totBase: checks.reduce((s,c)=>s+c.base,0), totAloc: checks.reduce((s,c)=>s+c.aloc,0)};
+  linhas.forEach(x => { const c = porCart[x.cart] = porCart[x.cart] || {cart:x.cart, outra:!!x.outra, nome:(CAR[x.cart]||{}).consultor_nome||'', med:0, base:0, meta:0, cotaPI:0, linhas:[]};
+    c.med += x.med||0; c.base += x.base||0; c.meta += x.meta||0; if (x.cotaPI) c.cotaPI += x.meta; c.linhas.push(x); });
+  Object.values(porCart).forEach(c => { c.metaAnt = ant[c.cart]||0; c.projN = projN[c.cart]||0; c.ating = c.metaAnt ? 100*c.projN/c.metaAnt : null;
+    c.trio = trio.has(c.cart); c.fx = c.outra ? {k:'outras', g:P.fxOutras, txt:'Bahia / COF'} : faixa(c.cart); c.cresc = c.meta - c.base; });
+  const cartList = Object.values(porCart).filter(c => c.meta >= 0.5 || c.base >= 0.5).sort((a,b) => b.meta - a.meta);
+  const tot = k => checks.reduce((s,c) => s + c[k], 0);
+  return {P, fNov, meses:{S:mS,O:mO,N:mN}, linhas, checks, cartList, zona, zonaVmm, zonaPorCart, cotaPI, compl, complPad, trioNov,
+    totMeta: tot('meta'), totMetaAnt: tot('metaAnt'), totBase: tot('base'), totNos: tot('nos'), totFora: tot('fora'), totGestao: tot('gestao')};
 }
 
 // ===== Simulador de metas =====
@@ -1079,74 +1077,81 @@ async function telaMetas() {
   $('#bHome').onclick = irHome;
   try {
     MTA.D = await rpc('dados_meta', {p_mes: MTA.mes});
-    if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_par2') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); MTA.P.saz = 0; }
+    if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_par3') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); }
     mtRender();
   } catch(e) { $('#mtBody').innerHTML = `<main class="eq" style="margin-top:20px"><div class="empty">Não consegui carregar os dados: ${esc(e.message||e)}</div></main>`; }
 }
-function mtSalvarPar() { try { localStorage.setItem('larco_mt_par2', JSON.stringify(MTA.P)); } catch(e) {} }
+function mtSalvarPar() { try { localStorage.setItem('larco_mt_par3', JSON.stringify(MTA.P)); } catch(e) {} }
 function mtNum(k, label, min, max, step, suf, dica) {
   return `<label class="mtp" title="${esc(dica||'')}"><span>${label}</span><div><input type="range" min="${min}" max="${max}" step="${step}" value="${MTA.P[k]}" data-k="${k}"><input type="number" min="${min}" max="${max}" step="${step}" value="${MTA.P[k]}" data-k="${k}"><em>${suf}</em></div></label>`;
+}
+
+const mtSinal = v => (v >= 0 ? '+' : '') + nf(v);
+const mtPct = (a, b) => b ? (a/b - 1) * 100 : null;
+const mtPctTxt = v => v == null ? '–' : `<span class="${v >= 0 ? 'up' : 'dn'}">${v >= 0 ? '+' : ''}${nf(v,0)}%</span>`;
+function mtFxTag(c) {
+  if (c.outra) return '';
+  if (c.trio) return '<span class="tag">regra Cabedelo</span>';
+  const k = c.fx.k; const cls = k === 'A' ? 'ok' : k === 'C' ? 'warn' : '';
+  return `<span class="tag ${cls}">${esc(c.fx.txt)} · +${nf(c.fx.g)}%</span>`;
 }
 function mtRender() {
   const D = MTA.D, P = MTA.P;
   if (!D.meta_filial || !D.meta_filial.length) { $('#mtBody').innerHTML = `<main class="eq" style="margin-top:20px"><div class="empty">As metas das filiais de ${esc(mtMesTxt(MTA.mes))} ainda não foram cadastradas.</div></main>`; return; }
-  const R = MTA.R = calcMetas(D, P);
-  const M = R.meses; const cresc = R.totMeta - R.totBase;
-  const somaW = (P.pesoH + P.pesoP + P.pesoR + P.pesoN) || 1; const pc = v => nf(100*v/somaW,0) + '%';
-  const filAlert = MT_FIL.map(f => { const cs = R.checks.filter(c => c.fil === f); const m = cs.reduce((s,c)=>s+c.meta,0), b = cs.reduce((s,c)=>s+c.base,0); return {f, m, b, pct: b ? 100*(m/b-1) : 0}; });
+  const R = MTA.R = calcMetas(D, P); const M = R.meses;
   const ja = (D.metas_mes||[]).length;
+  const gPos = R.checks.reduce((s,c) => s + Math.max(0, c.gestao), 0), gNeg = R.checks.reduce((s,c) => s + Math.min(0, c.gestao), 0);
   const html = `<section class="hero"><div class="hin">
-    <div class="hl"><p class="eyebrow">Simulador de metas · ${esc(mtMesTxt(MTA.mes))}</p><h2>Meta das carteiras</h2><p class="hsub">A meta de cada filial e produto é dividida entre as carteiras que vendem por ela: primeiro a base (o que a carteira já vende), depois o crescimento pelos critérios abaixo.</p></div>
+    <div class="hl"><p class="eyebrow">Simulador de metas · ${esc(mtMesTxt(MTA.mes))}</p><h2>Meta das carteiras</h2><p class="hsub">Cada carteira recebe uma meta individual que dá para bater: a base dos últimos 3 meses mais um crescimento pela faixa de desempenho em ${mtMesCurto(M.N)}. O que faltar para a meta da filial vira a meta da gestão.</p></div>
     <div class="hk">
-      <div><span>Meta das filiais (REG3)</span><b>${nf(R.totMeta)}<small> m³</small></b><em>${R.checks.filter(c=>c.meta>0).length} filial × produto</em></div>
-      <div><span>Base (todas as carteiras)</span><b>${nf(R.totBase)}<small> m³</small></b><em>média ponderada dos últimos 3 meses</em></div>
-      <div class="${cresc>0?'':'warn'}"><span>Crescimento a distribuir</span><b>${cresc>=0?'+':''}${nf(cresc)}<small> m³</small></b><em>${nf(100*cresc/(R.totBase||1),0)}% sobre a base</em></div>
-      <div class="${Math.abs(R.totAloc-R.totMeta)>1?'warn':''}"><span>Distribuído</span><b>${nf(R.totAloc)}<small> m³</small></b><em>${Math.abs(R.totAloc-R.totMeta)<=1?'fecha com a meta das filiais':R.totAloc>R.totMeta?`${nf(R.totAloc-R.totMeta)} m³ acima (piso)`:'não fecha: confira'}</em></div>
+      <div><span>Meta das filiais (REG3)</span><b>${nf(R.totMeta)}<small> m³</small></b><em>${R.totMetaAnt ? `${mtSinal(R.totMeta - R.totMetaAnt)} m³ vs ${mtMesCurto(M.N)} (${nf(mtPct(R.totMeta, R.totMetaAnt),0)}%)` : ''}</em></div>
+      <div><span>Metas individuais (equipe)</span><b>${nf(R.totNos)}<small> m³</small></b><em>${nf(100*R.totNos/R.totMeta,0)}% da meta</em></div>
+      <div><span>Bahia / COF</span><b>${nf(R.totFora)}<small> m³</small></b><em>${nf(100*R.totFora/R.totMeta,0)}% da meta</em></div>
+      <div class="${gPos > 0 ? 'warn' : ''}"><span>Meta da gestão (a cobrir)</span><b>${nf(gPos)}<small> m³</small></b><em>${nf(100*gPos/R.totMeta,0)}% da meta${gNeg < -1 ? ` · ${nf(-gNeg)} m³ de folga em outros produtos` : ''}</em></div>
     </div></div></section>
   <main class="eq">
-   <section class="blk"><div class="bh"><div><h3>Critérios</h3><p class="sub">Mexa nos pesos e limites: as metas se recalculam na hora. Passe o mouse em cada item para ver a explicação.</p></div>
+   <section class="blk"><div class="bh"><div><h3>Critérios</h3><p class="sub">Mexa nos números: as metas se recalculam na hora. Passe o mouse em cada item para ver a explicação.</p></div>
      <div class="bh-r"><button class="btn sec" id="mtPad">Voltar ao padrão</button></div></div>
      <div class="mtg">
-      <div class="mtc"><h4>Como dividir o crescimento</h4>
-        ${mtNum('pesoH','Histórico (peso)',0,100,5,pc(P.pesoH),'Quem já vende mais na filial/produto recebe mais crescimento.')}
-        ${mtNum('pesoP','Potencial nos clientes ativos',0,100,5,pc(P.pesoP),'Espaço que a Larco ainda não ocupa nos clientes ativos (Espião − Larco).')}
-        ${mtNum('pesoR','Reativação de inativos',0,100,5,pc(P.pesoR),'Volume médio que os clientes sem comprar há mais de 90 dias compravam no ano.')}
-        ${mtNum('pesoN','Prospects bandeira branca',0,100,5,pc(P.pesoN),'Volume de mercado dos postos bandeira branca prospects da carteira.')}
+      <div class="mtc"><h4>Crescimento pela faixa de ${mtMesCurto(M.N)}</h4>
+        ${mtNum('fxA',`Bateu ≥100% em ${mtMesCurto(M.N)}`,0,50,1,'%','Projeção de fechamento do mês corrente sobre a meta do mês.')}
+        ${mtNum('fxB','Entre 90% e 100%',0,50,1,'%','Projeção de fechamento do mês corrente sobre a meta do mês.')}
+        ${mtNum('fxC','Abaixo de 90%',0,50,1,'%','Quem não está batendo recebe pouco crescimento, para voltar a bater primeiro.')}
+        ${mtNum('fxSem',`Sem meta em ${mtMesCurto(M.N)}`,0,50,1,'%','Carteiras novas (SNP 01, MA 04).')}
       </div>
-      <div class="mtc"><h4>Base (o que a carteira já vende)</h4>
-        ${mtNum('wSet',`Peso de ${mtMesCurto(M.S)}`,0,100,5,'','Peso do mês na média ponderada da base.')}
-        ${mtNum('wOut',`Peso de ${mtMesCurto(M.O)}`,0,100,5,'','Peso do mês na média ponderada da base.')}
-        ${mtNum('wNov',`Peso de ${mtMesCurto(M.N)} (projetado)`,0,100,5,'',`Mês corrente projetado para o mês cheio (×${nf(R.fNov,2)}, dados até ${new Date(D.ultimo_dia+'T12:00:00').toLocaleDateString('pt-BR')}).`)}
+      <div class="mtc"><h4>Regra de Cabedelo</h4>
+        <label class="mtp" title="Essas carteiras dividem a meta de Cabedelo e completam por Ipojuca."><span>Carteiras</span><div><input type="text" data-k="trio" value="${esc(P.trio)}" style="width:100%"></div></label>
+        <label class="mtp" title="Volume que o trio completa por Ipojuca além da meta de Cabedelo. Em branco = o mesmo de ${mtMesCurto(M.N)}."><span>Complemento por Ipojuca (m³)</span><div><input type="number" data-k="compl" value="${P.compl == null ? '' : P.compl}" placeholder="${nf(R.complPad)}" style="width:110px;text-align:right"><em>${P.compl == null || P.compl === '' ? 'igual a ' + mtMesCurto(M.N) : ''}</em></div></label>
+        <p class="sub">${mtMesCurto(M.N)}: metas do trio ${nf(R.trioNov)} m³ − meta de Cabedelo ${nf((D.meta_filial_ant||[]).filter(r=>r.fil==='24').reduce((s,r)=>s+(+r.m3),0))} m³ = ${nf(R.complPad)} m³ por Ipojuca. Em ${mtMesCurto(MTA.mes.slice(0,7))}: Cabedelo ${nf(R.checks.filter(c=>c.fil==='24').reduce((s,c)=>s+c.meta,0))} m³ + ${nf(R.compl)} m³.</p>
       </div>
-      <div class="mtc"><h4>Limites</h4>
-        ${mtNum('teto','Teto de crescimento sobre a base',0,150,5,'%','Quanto a carteira pode crescer só pela base. Somado às conversões abaixo, forma a capacidade de crescimento.')}
-        ${mtNum('convR','Conversão dos inativos',0,100,5,'%','Parte do volume dos inativos que entra na capacidade de crescimento.')}
-        ${mtNum('convN','Conversão dos prospects',0,30,1,'%','Parte do volume de mercado dos prospects que entra na capacidade de crescimento.')}
-        <label class="mtp" title="Quando a meta da filial é menor que a base, ninguém recebe meta abaixo do que já vende (sem o efeito dezembro)."><span>Piso: ninguém abaixo da base</span><div><select data-k="piso"><option value="1" ${P.piso?'selected':''}>Ligado</option><option value="0" ${!P.piso?'selected':''}>Desligado</option></select></div></label>
-        <label class="mtp" title="Carteiras com volume fixo: ficam com a base + efeito dezembro, sem crescimento."><span>Carteiras fixas</span><div><input type="text" data-k="fixas" value="${esc(P.fixas)}" style="width:100%"></div></label>
+      <div class="mtc"><h4>Outras regras</h4>
+        ${mtNum('fxOutras','Bahia / COF',0,50,1,'%','Crescimento das carteiras de fora sobre a base delas.')}
+        ${mtNum('ma04Reat','MA 04: % do volume dos inativos',0,100,5,'%','A MA 04 é de reativação: meta = base + esse % do que os inativos dela compravam.')}
+        <label class="mtp" title="Carteiras com volume fixo: meta = base."><span>Carteiras fixas</span><div><input type="text" data-k="fixas" value="${esc(P.fixas)}" style="width:100%"></div></label>
+        <p class="sub">Base: média ponderada de ${mtMesCurto(M.S)} (${nf(P.wSet)}%), ${mtMesCurto(M.O)} (${nf(P.wOut)}%) e ${mtMesCurto(M.N)} projetado (${nf(P.wNov)}%, ×${nf(R.fNov,2)}).</p>
       </div>
       <div class="mtc"><h4>Cota do PI 01 no Maranhão</h4>
         ${mtNum('piRaio','Raio a partir de Teresina',0,200,10,'km','Prospects bandeira branca do MA dentro desse raio (Timon, Caxias, Matões…).')}
         ${mtNum('piConv','Conversão desses prospects',0,30,1,'%','Parte do volume de mercado desses postos que vira cota.')}
         ${mtNum('piMax','Cota máxima',0,500,10,'m³','Limite da cota do PI 01 no MA.')}
         <label class="mtp"><span>Sai da base de</span><div><select data-k="piFil"><option value="17" ${P.piFil==='17'?'selected':''}>Itaqui</option><option value="38" ${P.piFil==='38'?'selected':''}>Teresina</option></select></div></label>
-        <p class="sub">${R.zona.length} prospects · ${nf(R.zonaVmm)} m³/mês de mercado · <b>cota ${nf(R.cotaPI)} m³</b>${Object.keys(R.zonaPorCart).length?` · hoje na ${Object.entries(R.zonaPorCart).map(([c,z])=>`${esc(c)} (${z.n})`).join(', ')}`:''}</p>
+        <p class="sub">${R.zona.length} prospects · ${nf(R.zonaVmm)} m³/mês de mercado · <b>cota ${nf(R.cotaPI)} m³</b></p>
       </div>
      </div></section>
-   ${R.checks.filter(c => c.excesso > 1).length ? `<div class="mtal">⚠️ Meta da filial abaixo do que as carteiras já vendem: ${R.checks.filter(c => c.excesso > 1).map(c => `<b>${MT_NOMEF[c.fil]} ${MT_NOMEP[c.col]}</b> (meta ${nf(c.meta)} m³, base ${nf(c.base)} m³)`).join(' · ')}. Com o piso ligado, ninguém fica abaixo da base e a soma passa a meta da filial em ${nf(R.checks.reduce((s,c)=>s+c.excesso,0))} m³.</div>` : ''}
-   ${filAlert.filter(a => a.pct > 50).length ? `<div class="mtal">⚠️ ${filAlert.filter(a => a.pct > 50).map(a => `<b>${MT_NOMEF[a.f]}</b>: meta ${nf(a.m)} m³, ${nf(a.pct,0)}% acima da base (${nf(a.b)} m³)`).join(' · ')}. Nessas filiais, as carteiras vão passar do teto para a meta fechar.</div>` : ''}
-   <section class="blk"><div class="bh"><div><h3>Meta por carteira</h3><p class="sub">Por base: cada bloco fecha com a meta das filiais dele. Em Carteiras, clique na carteira para ver a meta por filial e produto. O crescimento mostra de onde veio cada parte: histórico · potencial · reativação · prospects.</p></div>
+   <section class="blk"><div class="bh"><div><h3>Meta por carteira</h3><p class="sub">Meta da filial = metas individuais da equipe + Bahia / COF + meta da gestão.</p></div>
      <div class="bh-r"><div class="seg" id="mtVer"><button data-v="base" class="${MTA.ver==='base'?'on':''}">Por base</button><button data-v="cart" class="${MTA.ver==='cart'?'on':''}">Carteiras</button><button data-v="fil" class="${MTA.ver==='fil'?'on':''}">Filial × produto</button></div></div></div>
      ${MTA.ver === 'base' ? mtPorBase(R) : `<div class="scroll">${MTA.ver === 'fil' ? mtTabFil(R) : mtTabCart(R)}</div>`}
    </section>
    ${mtSecOutras(R)}
-   <section class="blk"><div class="bh"><div><h3>Gravar</h3><p class="sub">${ja ? `Já existem metas gravadas para ${esc(mtMesTxt(MTA.mes))}: gravar de novo substitui todas.` : `Grava a meta de cada carteira (total e por filial × produto) e a das carteiras Bahia / COF para ${esc(mtMesTxt(MTA.mes))}. O CRM passa a usar essas metas a partir do dia 1.`}</p></div>
+   <section class="blk"><div class="bh"><div><h3>Gravar</h3><p class="sub">${ja ? `Já existem metas gravadas para ${esc(mtMesTxt(MTA.mes))}: gravar de novo substitui todas.` : `Grava a meta individual de cada carteira (total e por filial × produto) e a das carteiras Bahia / COF para ${esc(mtMesTxt(MTA.mes))}. A meta da gestão não é distribuída.`}</p></div>
      <div class="bh-r">${ehOp() ? `<button class="btn" id="mtGravar">Gravar metas de ${esc(mtMesTxt(MTA.mes).split(' ')[0].toLowerCase())}</button>` : '<span class="sub">Só o Hugo e o Gabriel gravam.</span>'}</div></div><div id="mtMsg"></div></section>
   </main>`;
   $('#mtBody').innerHTML = html;
   $('#mtBody').querySelectorAll('[data-k]').forEach(el => {
     if (el.type === 'range') el.addEventListener('input', () => { const n = el.parentNode.querySelector('input[type=number]'); if (n) n.value = el.value; });
-    el.addEventListener('change', () => { const k = el.dataset.k; MTA.P[k] = (k === 'fixas' || k === 'piFil') ? el.value : (+el.value || 0); mtSalvarPar(); const y = window.scrollY; mtRender(); window.scrollTo(0, y); });
+    el.addEventListener('change', () => { const k = el.dataset.k;
+      MTA.P[k] = ['fixas','piFil','trio'].includes(k) ? el.value : k === 'compl' ? (el.value === '' ? null : +el.value) : (+el.value || 0);
+      mtSalvarPar(); const y = window.scrollY; mtRender(); window.scrollTo(0, y); });
   });
   $('#mtPad').onclick = () => { MTA.P = Object.assign({}, MT_PAR0); mtSalvarPar(); mtRender(); };
   $('#mtVer').querySelectorAll('button').forEach(b => b.onclick = () => { MTA.ver = b.dataset.v; mtRender(); });
@@ -1154,111 +1159,94 @@ function mtRender() {
   if ($('#mtGravar')) $('#mtGravar').onclick = mtGravar;
   if ($('#mtCsv')) $('#mtCsv').onclick = mtCsvOutras;
 }
-function mtBarra(c) {
-  const t = Math.max(1, c.meta); const w = v => Math.max(0, 100*v/t);
-  return `<div class="mtbar" title="Base ${nf(c.baseS)} · histórico ${nf(c.H)} · potencial ${nf(c.P)} · reativação ${nf(c.R)} · prospects ${nf(c.N)}"><i class="b" style="width:${w(c.baseS)}%"></i><i class="h" style="width:${w(c.H)}%"></i><i class="p" style="width:${w(c.P)}%"></i><i class="r" style="width:${w(c.R)}%"></i><i class="n" style="width:${w(c.N)}%"></i></div>`;
+function mtGestCel(g) { return Math.abs(g) < 0.5 ? '<span class="okp">✓</span>' : g > 0 ? `<span class="gst">${nf(g)}</span>` : `<span class="okp" title="As metas individuais passam a meta da filial">folga ${nf(-g)}</span>`; }
+function mtResumo(R) {
+  const agg = (fs, p) => R.checks.filter(c => fs.includes(c.fil) && (!p || c.col === p)).reduce((a,c) => ({meta:a.meta+c.meta, ant:a.ant+c.metaAnt, nos:a.nos+c.nos, fora:a.fora+c.fora, g:a.g+c.gestao}), {meta:0,ant:0,nos:0,fora:0,g:0});
+  const td = c => c.meta <= 0 && c.nos + c.fora < 0.5 ? '<td class="r sub">–</td>' : `<td class="r"><b>${nf(c.meta)}</b><br>${mtGestCel(c.g)}</td>`;
+  const row = (nome, fs) => { const t = agg(fs); return `<tr><td><b>${nome}</b></td>${MT_COL.map(p => td(agg(fs, p))).join('')}<td class="r">${nf(t.ant)}</td><td class="r"><b>${nf(t.meta)}</b></td><td class="r">${nf(t.nos)}</td><td class="r">${nf(t.fora)}</td><td class="r">${mtGestCel(t.g)}</td><td class="r"><b>${nf(100*(t.nos+t.fora)/(t.meta||1),0)}%</b></td></tr>`; };
+  return `<div class="mtres"><h4>Resumo · meta da filial = equipe + Bahia / COF + gestão</h4>
+    <div class="scroll"><table class="mtt"><tr><th>Base</th>${MT_COL.map(p => `<th class="r">${MT_NOMEP[p]}<br><small>meta · gestão</small></th>`).join('')}<th class="r">Meta ${mtMesCurto(R.meses.N)}</th><th class="r">Meta ${mtMesCurto(MTA.mes.slice(0,7))}</th><th class="r">Equipe</th><th class="r">Bahia / COF</th><th class="r">Gestão</th><th class="r">Coberto pelas carteiras</th></tr>
+    ${MT_GRUPOS.map(([n, fs]) => row(n, fs)).join('')}${row('REG3', MT_FIL).replace('<tr>', '<tr class="mtsubt">')}</table></div>
+    <p class="sub">Em cada produto: a meta e, embaixo, quanto fica com a gestão (✓ = as carteiras fecham; "folga" = as metas individuais passam a meta da filial).</p></div>`;
+}
+function mtPorBase(R) {
+  const M = R.meses; const N = mtMesCurto(M.N);
+  return mtResumo(R) + MT_GRUPOS.map(([nome, fs]) => {
+    const ck = R.checks.filter(c => fs.includes(c.fil));
+    const meta = ck.reduce((s,c) => s + c.meta, 0), metaAnt = ck.reduce((s,c) => s + c.metaAnt, 0);
+    const ls = R.linhas.filter(x => fs.includes(x.fil));
+    const carts = {}; ls.forEach(x => { const c = carts[x.cart] = carts[x.cart] || {cart:x.cart, outra:!!x.outra, med:0, base:0, meta:0, p:{}, cota:0};
+      c.med += x.med||0; c.base += x.base||0; c.meta += x.meta||0; c.p[x.col] = (c.p[x.col]||0) + (x.meta||0); if (x.cotaPI) c.cota += x.meta; });
+    const CL = {}; R.cartList.forEach(c => CL[c.cart] = c);
+    const lista = Object.values(carts).filter(c => c.meta >= 0.5 || c.base >= 0.5);
+    const nos = lista.filter(c => !c.outra).sort((a,b) => b.meta - a.meta), fora = lista.filter(c => c.outra).sort((a,b) => b.meta - a.meta);
+    const gp = p => ck.filter(c => c.col === p).reduce((s,c) => s + c.gestao, 0);
+    const cols = MT_COL.filter(p => ck.some(c => c.col === p && (c.meta > 0 || c.base > 0.5)));
+    const lin = c => { const g = CL[c.cart] || {}; const outra = c.outra;
+      return `<tr><td><b>${c.cart === 'SNP 01' ? 'SNP 01 <small>(MA 03)</small>' : esc(c.cart)}</b>${!outra && g.nome ? `<br><span class="sub">${esc(g.nome)}</span>` : ''} ${outra ? '' : mtFxTag(g)}${c.cota?` <span class="tag">cota MA ${nf(c.cota)}</span>`:''}</td>
+      <td class="r">${!outra && g.metaAnt ? nf(g.metaAnt) : '–'}</td><td class="r">${!outra && g.ating != null ? nf(g.ating,0) + '%' : '–'}</td>
+      <td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r">${mtSinal(c.meta - c.base)}</td><td class="r">${mtPctTxt(c.base ? mtPct(c.meta, c.base) : null)}</td>
+      ${cols.map(p => `<td class="r">${(c.p[p]||0) >= 0.5 ? nf(c.p[p]) : '–'}</td>`).join('')}<td class="r"><b class="mtm">${nf(c.meta)}</b></td></tr>`; };
+    const sub = (t, arr, cls) => `<tr class="${cls||'mtsubt'}"><td><b>${t}</b></td><td></td><td></td><td class="r">${nf(arr.reduce((s,c) => s + c.med, 0))}</td><td class="r">${nf(arr.reduce((s,c) => s + c.base, 0))}</td><td class="r">${mtSinal(arr.reduce((s,c) => s + c.meta - c.base, 0))}</td><td></td>${cols.map(p => `<td class="r"><b>${nf(arr.reduce((s,c) => s + (c.p[p]||0), 0))}</b></td>`).join('')}<td class="r"><b>${nf(arr.reduce((s,c) => s + c.meta, 0))}</b></td></tr>`;
+    const gT = cols.reduce((s,p) => s + gp(p), 0);
+    return `<div class="mtgrp"><div class="mtgh"><div><h4>${nome}</h4><span class="sub">${fs.map(f => MT_NOMEF[f]).join(' + ')} · meta ${nf(meta)} m³${metaAnt ? ` (${mtSinal(meta - metaAnt)} vs ${N})` : ''}</span></div>
+      <div class="mtgk">${cols.map(p => `<div><span>${MT_NOMEP[p]}</span><b>${nf(ck.filter(c => c.col === p).reduce((s,c) => s + c.meta, 0))}</b></div>`).join('')}<div class="tot"><span>Meta REG3</span><b>${nf(meta)}</b></div></div></div>
+      <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th class="r">Meta ${N}</th><th class="r">% ${N}</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">vs base</th>${cols.map(p => `<th class="r">${MT_NOMEP[p]}</th>`).join('')}<th class="r">Meta</th></tr>
+      ${nos.map(lin).join('')}${sub('Total equipe', nos)}
+      ${fora.length ? `<tr class="mtsep"><td colspan="${cols.length+8}">Bahia / COF · outras carteiras</td></tr>${fora.map(lin).join('')}${sub('Total Bahia / COF', fora)}` : ''}
+      <tr class="mtgest"><td><b>Meta da gestão</b><br><span class="sub">o que falta para a meta da filial</span></td><td colspan="6"></td>${cols.map(p => `<td class="r">${mtGestCel(gp(p))}</td>`).join('')}<td class="r"><b>${mtGestCel(gT)}</b></td></tr>
+      <tr class="mtsubt"><td><b>Total ${nome}</b></td><td colspan="6"></td>${cols.map(p => `<td class="r"><b>${nf(ck.filter(c => c.col === p).reduce((s,c) => s + c.meta, 0))}</b></td>`).join('')}<td class="r"><b>${nf(meta)}</b></td></tr></table></div></div>`;
+  }).join('');
 }
 function mtTabCart(R) {
-  const M = R.meses;
-  const nome = c => c === 'SNP 01' ? 'SNP 01 <small>(MA 03)</small>' : esc(c);
-  const rows = R.cartList.filter(c => !c.outra && c.cart !== '(sem carteira)').map(c => {
-    const d = c.metaAnt ? 100*(c.meta/c.metaAnt-1) : null; const g = c.baseS ? 100*(c.meta/c.base-1) : null;
+  const N = mtMesCurto(R.meses.N);
+  const rows = R.cartList.filter(c => !c.outra).map(c => {
     let det = '';
     if (MTA.aberto[c.cart]) {
-      const ls = c.linhas.filter(x => (x.meta||0) > 0.5 || x.baseS > 0.5).sort((a,b) => MT_FIL.indexOf(a.fil) - MT_FIL.indexOf(b.fil) || MT_COL.indexOf(a.col) - MT_COL.indexOf(b.col));
-      det = `<tr class="mtdet"><td colspan="9"><table class="mtsub"><tr><th>Filial</th><th>Produto</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">+ Histórico</th><th class="r">+ Potencial</th><th class="r">+ Reativação</th><th class="r">+ Prospects</th><th class="r">Meta</th></tr>
-        ${ls.map(x => `<tr><td>${MT_NOMEF[x.fil]}</td><td>${MT_NOMEP[x.col]}${x.cotaPI?' <span class="tag">cota MA</span>':''}${x.acimaTeto?' <span class="tag warn">acima do teto</span>':''}</td><td class="r">${nf(x.med)}</td><td class="r">${nf(x.baseS)}</td><td class="r">${nf(x.comp.H)}</td><td class="r">${nf(x.comp.P)}</td><td class="r">${nf(x.comp.R)}</td><td class="r">${nf(x.comp.N)}</td><td class="r"><b>${nf(x.meta)}</b></td></tr>`).join('')}</table>
-        <p class="sub">${nf(c.ativos)} clientes ativos · ${nf(c.inativos)} inativos · ${nf(c.prospects)} prospects bandeira branca · potencial nos ativos ${nf(c.potAtivos)} m³/mês · mercado dos prospects ${nf(c.vmmProsp)} m³/mês</p></td></tr>`;
+      const ls = c.linhas.filter(x => (x.meta||0) >= 0.5 || x.base >= 0.5).sort((a,b) => MT_FIL.indexOf(a.fil) - MT_FIL.indexOf(b.fil) || MT_COL.indexOf(a.col) - MT_COL.indexOf(b.col));
+      det = `<tr class="mtdet"><td colspan="9"><table class="mtsub"><tr><th>Filial</th><th>Produto</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">Meta</th></tr>
+        ${ls.map(x => `<tr><td>${MT_NOMEF[x.fil]}</td><td>${MT_NOMEP[x.col]}${x.cotaPI?' <span class="tag">cota MA</span>':''}</td><td class="r">${nf(x.med)}</td><td class="r">${nf(x.base)}</td><td class="r">${mtSinal((x.meta||0) - x.base)}</td><td class="r"><b>${nf(x.meta)}</b></td></tr>`).join('')}</table></td></tr>`;
     }
-    return `<tr data-c="${esc(c.cart)}" class="clk"><td><b>${nome(c.cart)}</b><br><span class="sub">${esc(c.nome)}</span></td>
-      <td class="r">${c.metaAnt?nf(c.metaAnt):'–'}</td><td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td>
-      <td class="r">${c.fixa?'<span class="sub">fixa</span>':(c.cresc>=0?'+':'')+nf(c.cresc)}</td><td style="min-width:140px">${mtBarra(c)}</td>
-      <td class="r"><b class="mtm">${nf(c.meta)}</b></td><td class="r">${d==null?'–':`<span class="${d>=0?'up':'dn'}">${d>=0?'+':''}${nf(d,0)}%</span>`}</td>
-      <td>${c.acimaTeto?'<span class="tag warn">acima do teto</span>':''}${c.cotaPI?` <span class="tag">cota MA ${nf(c.cotaPI)}</span>`:''}</td></tr>${det}`;
+    return `<tr data-c="${esc(c.cart)}" class="clk"><td><b>${c.cart === 'SNP 01' ? 'SNP 01 <small>(MA 03)</small>' : esc(c.cart)}</b><br><span class="sub">${esc(c.nome)}</span></td><td>${mtFxTag(c)}${c.cotaPI?` <span class="tag">cota MA ${nf(c.cotaPI)}</span>`:''}</td>
+      <td class="r">${c.metaAnt ? nf(c.metaAnt) : '–'}</td><td class="r">${c.ating != null ? nf(c.ating,0) + '%' : '–'}</td><td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r">${mtSinal(c.cresc)}</td>
+      <td class="r"><b class="mtm">${nf(c.meta)}</b></td><td class="r">${mtPctTxt(c.metaAnt ? mtPct(c.meta, c.metaAnt) : null)}</td></tr>${det}`;
   }).join('');
-  const sc = R.cartList.find(c => c.cart === '(sem carteira)');
-  return `<div class="mtleg"><i class="b"></i>base <i class="h"></i>histórico <i class="p"></i>potencial <i class="r"></i>reativação <i class="n"></i>prospects</div>
-   <table class="mtt"><tr><th>Carteira</th><th class="r">Meta ${mtMesCurto(M.N)}</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th>Composição</th><th class="r">Meta</th><th class="r">vs ${mtMesCurto(M.N)}</th><th></th></tr>${rows}
-   ${sc && sc.meta > 0.5 ? `<tr class="sub"><td>Sem carteira (Sinop)</td><td></td><td class="r">${nf(sc.med)}</td><td class="r">${nf(sc.base)}</td><td></td><td></td><td class="r">${nf(sc.meta)}</td><td></td><td><span class="sub">não grava</span></td></tr>` : ''}</table>`;
+  return `<table class="mtt"><tr><th>Carteira</th><th>Regra</th><th class="r">Meta ${N}</th><th class="r">% ${N} (proj.)</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">Meta</th><th class="r">vs meta ${N}</th></tr>${rows}</table>`;
 }
 function mtTabFil(R) {
-  return `<table class="mtt"><tr><th>Filial</th><th>Produto</th><th class="r">Meta REG3</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">%</th><th>Carteiras (meta)</th></tr>
-   ${R.checks.filter(c => c.meta > 0 || c.base > 0).map(c => { const xs = R.linhas.filter(x => x.fil === c.fil && x.col === c.col && (x.meta||0) >= 0.5).sort((a,b) => b.meta - a.meta);
-     return `<tr><td>${MT_NOMEF[c.fil]}</td><td>${MT_NOMEP[c.col]}</td><td class="r"><b>${nf(c.meta)}</b></td><td class="r">${nf(c.base)}</td><td class="r">${c.meta-c.base>=0?'+':''}${nf(c.meta-c.base)}</td><td class="r">${c.base?nf(100*(c.meta/c.base-1),0)+'%':'–'}</td>
-     <td class="sub">${xs.map(x => `${esc(x.cart)}${x.cotaPI?' (cota MA)':''} ${nf(x.meta)}`).join(' · ')}</td></tr>`; }).join('')}</table>`;
+  const N = mtMesCurto(R.meses.N);
+  return `<table class="mtt"><tr><th>Filial</th><th>Produto</th><th class="r">Meta ${N}</th><th class="r">Meta REG3</th><th class="r">Base</th><th class="r">Equipe</th><th class="r">Bahia / COF</th><th class="r">Gestão</th></tr>
+   ${R.checks.map(c => `<tr><td>${MT_NOMEF[c.fil]}</td><td>${MT_NOMEP[c.col]}</td><td class="r">${nf(c.metaAnt)}</td><td class="r"><b>${nf(c.meta)}</b></td><td class="r">${nf(c.base)}</td><td class="r">${nf(c.nos)}</td><td class="r">${nf(c.fora)}</td><td class="r">${mtGestCel(c.gestao)}</td></tr>`).join('')}</table>`;
 }
 async function mtGravar() {
   const b = $('#mtGravar');
-  if (!b.dataset.conf) { b.dataset.conf = '1'; b.textContent = `Confirmar: gravar ${MTA.R.cartList.filter(c=>!c.outra&&c.cart!=='(sem carteira)').length} carteiras da equipe + Bahia / COF`; b.classList.add('warn'); return; }
+  if (!b.dataset.conf) { b.dataset.conf = '1'; b.textContent = `Confirmar: gravar ${MTA.R.cartList.filter(c=>!c.outra).length} carteiras da equipe + Bahia / COF`; b.classList.add('warn'); return; }
   b.disabled = true; b.textContent = 'Gravando…';
-  const agg = {}; MTA.R.linhas.forEach(x => { if ((x.meta||0) <= 0 || x.cart === '(sem carteira)' || x.cart === '(sem vendedor)') return; const k = x.cart+'|'+x.fil+'|'+x.col; agg[k] = agg[k] || {cart:x.cart, fil:x.fil, col:x.col, m3:0}; agg[k].m3 += x.meta; });
+  const agg = {}; MTA.R.linhas.forEach(x => { if ((x.meta||0) <= 0) return; const k = x.cart+'|'+x.fil+'|'+x.col; agg[k] = agg[k] || {cart:x.cart, fil:x.fil, col:x.col, m3:0}; agg[k].m3 += x.meta; });
   try {
     const r = await rpc('gravar_metas_mes', {p_mes: MTA.mes, p_linhas: Object.values(agg), p_criterio: JSON.stringify(MTA.P)});
     $('#mtMsg').innerHTML = `<div class="mtok">✅ Metas gravadas: ${nf(r.carteiras)} carteiras da equipe, ${nf(r.total)} m³${r.outras ? ` + Bahia / COF ${nf(r.outras)} m³` : ''}.</div>`;
     MTA.D = await rpc('dados_meta', {p_mes: MTA.mes}); setTimeout(mtRender, 1500);
   } catch(e) { $('#mtMsg').innerHTML = `<div class="mtal">Não consegui gravar: ${esc(e.message||e)}</div>`; b.disabled = false; delete b.dataset.conf; b.textContent = 'Tentar de novo'; }
 }
-
 function mtSecOutras(R) {
   const os = R.cartList.filter(c => c.outra && c.meta >= 0.5);
   if (!os.length) return '';
-  const M = R.meses; const tot = k => os.reduce((s,c) => s + (c[k]||0), 0);
+  const tot = k => os.reduce((s,c) => s + (c[k]||0), 0);
   const filTxt = c => [...new Set(c.linhas.filter(x => (x.meta||0) >= 0.5).map(x => MT_NOMEF[x.fil]))].join(', ');
-  return `<section class="blk"><div class="bh"><div><h3>Bahia / COF · outras carteiras nas nossas filiais</h3><p class="sub">Carteiras de fora da equipe que retiram em Suape, Cabedelo, Itaqui, Teresina, Juazeiro e Sinop (Qlik, sem congêneres). Elas crescem só pelo histórico. Use o arquivo para alimentar a planilha da Bahia / COF.</p></div>
+  const pc = (c,p) => c.linhas.filter(x => x.col === p).reduce((s,x) => s + (x.meta||0), 0);
+  return `<section class="blk"><div class="bh"><div><h3>Bahia / COF · outras carteiras nas nossas filiais</h3><p class="sub">Carteiras de fora da equipe que retiram nas nossas filiais (Qlik, sem congêneres), com +${nf(R.P.fxOutras)}% sobre a base. Use o arquivo para alimentar a planilha da Bahia / COF.</p></div>
     <div class="bh-r"><button class="btn sec" id="mtCsv">⬇️ Baixar planilha (filial × produto)</button></div></div>
-    <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th>Filiais</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">Gasolina</th><th class="r">Etanol</th><th class="r">S10</th><th class="r">S500</th><th class="r">Meta</th></tr>
-    ${os.map(c => { const pc = p => c.linhas.filter(x => x.col === p).reduce((s,x) => s + (x.meta||0), 0);
-      return `<tr><td><b>${esc(c.cart)}</b></td><td class="sub">${esc(filTxt(c))}</td><td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r">${c.meta-c.base>=0?'+':''}${nf(c.meta-c.base)}</td>${MT_COL.map(p => `<td class="r">${nf(pc(p))}</td>`).join('')}<td class="r"><b class="mtm">${nf(c.meta)}</b></td></tr>`; }).join('')}
-    <tr><td><b>Total Bahia / COF</b></td><td></td><td class="r"><b>${nf(tot('med'))}</b></td><td class="r"><b>${nf(tot('base'))}</b></td><td class="r"><b>${tot('meta')-tot('base')>=0?'+':''}${nf(tot('meta')-tot('base'))}</b></td>${MT_COL.map(p => `<td class="r"><b>${nf(os.reduce((s,c) => s + c.linhas.filter(x => x.col === p).reduce((a,x) => a + (x.meta||0), 0), 0))}</b></td>`).join('')}<td class="r"><b class="mtm">${nf(tot('meta'))}</b></td></tr></table></div></section>`;
+    <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th>Filiais</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th>${MT_COL.map(p => `<th class="r">${MT_NOMEP[p]}</th>`).join('')}<th class="r">Meta</th></tr>
+    ${os.map(c => `<tr><td><b>${esc(c.cart)}</b></td><td class="sub">${esc(filTxt(c))}</td><td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r">${mtSinal(c.meta - c.base)}</td>${MT_COL.map(p => `<td class="r">${nf(pc(c,p))}</td>`).join('')}<td class="r"><b class="mtm">${nf(c.meta)}</b></td></tr>`).join('')}
+    <tr class="mtsubt"><td><b>Total Bahia / COF</b></td><td></td><td class="r"><b>${nf(tot('med'))}</b></td><td class="r"><b>${nf(tot('base'))}</b></td><td class="r"><b>${mtSinal(tot('meta') - tot('base'))}</b></td>${MT_COL.map(p => `<td class="r"><b>${nf(os.reduce((s,c) => s + pc(c,p), 0))}</b></td>`).join('')}<td class="r"><b class="mtm">${nf(tot('meta'))}</b></td></tr></table></div></section>`;
 }
 function mtCsvOutras() {
   const R = MTA.R; const linhas = [['Carteira','Filial','Codigo filial','Produto','Media 3 meses (m3)','Base (m3)','Crescimento (m3)','Meta ' + MTA.mes.slice(0,7) + ' (m3)','Meta (litros)']];
   R.linhas.filter(x => x.outra && (x.meta||0) >= 0.5).sort((a,b) => a.cart.localeCompare(b.cart) || MT_FIL.indexOf(a.fil) - MT_FIL.indexOf(b.fil) || MT_COL.indexOf(a.col) - MT_COL.indexOf(b.col))
-    .forEach(x => linhas.push([x.cart, MT_NOMEF[x.fil], x.fil, MT_NOMEP[x.col], nf(x.med,1), nf(x.base,1), nf(x.meta-x.base,1), nf(x.meta,1), Math.round(x.meta*1000)]));
-  const csv = '\ufeff' + linhas.map(l => l.map(v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g,'""') + '"' : v).join(';')).join('\r\n');
+    .forEach(x => linhas.push([x.cart, MT_NOMEF[x.fil], x.fil, MT_NOMEP[x.col], nf(x.med,1), nf(x.base,1), nf(x.meta - x.base,1), nf(x.meta,1), Math.round(x.meta*1000)]));
+  const csv = '﻿' + linhas.map(l => l.map(v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g,'""') + '"' : v).join(';')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'})); a.download = `metas_bahia_cof_${MTA.mes.slice(0,7)}.csv`; document.body.appendChild(a); a.click(); a.remove();
-}
-
-function mtResumo(R) {
-  const tot = {meta:0, nos:0, fora:0};
-  const cel = (fs, p) => { const ck = R.checks.filter(c => fs.includes(c.fil) && c.col === p); const meta = ck.reduce((s,c) => s + c.meta, 0);
-    const ls = R.linhas.filter(x => fs.includes(x.fil) && x.col === p && x.cart !== '(sem carteira)' && x.cart !== '(sem vendedor)');
-    const nos = ls.filter(x => !x.outra).reduce((s,x) => s + (x.meta||0), 0), fora = ls.filter(x => x.outra).reduce((s,x) => s + (x.meta||0), 0);
-    return {meta, nos, fora}; };
-  const td = c => { if (c.meta <= 0) return '<td class="r sub">sem meta</td>'; const pct = 100*(c.nos+c.fora)/c.meta;
-    return `<td class="r" title="Equipe ${nf(c.nos)} + Bahia / COF ${nf(c.fora)} = ${nf(c.nos+c.fora)} de ${nf(c.meta)} m³"><b>${nf(c.meta)}</b><br><span class="${Math.abs(pct-100)<0.5?'okp':'wp'}">${Math.abs(pct-100)<0.5?'✓ 100%':nf(pct,0)+'%'}</span></td>`; };
-  const linhas = MT_GRUPOS.map(([nome, fs]) => { const cs = MT_COL.map(p => cel(fs, p)); const t = cs.reduce((a,c) => ({meta:a.meta+c.meta, nos:a.nos+c.nos, fora:a.fora+c.fora}), {meta:0,nos:0,fora:0});
-    tot.meta += t.meta; tot.nos += t.nos; tot.fora += t.fora;
-    return `<tr><td><b>${nome}</b></td>${cs.map(td).join('')}<td class="r">${nf(t.nos)}</td><td class="r">${nf(t.fora)}</td>${td(t)}</tr>`; }).join('');
-  return `<div class="mtres"><h4>Resumo · meta da filial = nossas carteiras + carteiras de fora</h4>
-    <div class="scroll"><table class="mtt"><tr><th>Base</th>${MT_COL.map(p => `<th class="r">${MT_NOMEP[p]}</th>`).join('')}<th class="r">Equipe</th><th class="r">Bahia / COF</th><th class="r">Total</th></tr>${linhas}
-    <tr class="mtsubt"><td><b>REG3</b></td>${MT_COL.map(p => td(cel(MT_FIL, p))).join('')}<td class="r"><b>${nf(tot.nos)}</b></td><td class="r"><b>${nf(tot.fora)}</b></td>${td(tot)}</tr></table></div>
-    <p class="sub">✓ 100% = equipe + Bahia / COF fecha exatamente a meta daquele produto. Acima de 100% só acontece quando a meta da filial é menor que o que as carteiras já vendem e o piso está ligado.</p></div>`;
-}
-function mtPorBase(R) {
-  const M = R.meses;
-  return mtResumo(R) + MT_GRUPOS.map(([nome, fs]) => {
-    const ck = R.checks.filter(c => fs.includes(c.fil));
-    const meta = ck.reduce((s,c) => s + c.meta, 0), base = R.linhas.filter(x => fs.includes(x.fil) && x.cart !== '(sem vendedor)').reduce((s,x) => s + (x.base||0), 0), aloc = ck.reduce((s,c) => s + c.aloc, 0);
-    const mp = p => ck.filter(c => c.col === p).reduce((s,c) => s + c.meta, 0);
-    const ls = R.linhas.filter(x => fs.includes(x.fil));
-    const carts = {}; ls.forEach(x => { const c = carts[x.cart] = carts[x.cart] || {cart:x.cart, outra:!!x.outra, A:0, med:0, base:0, meta:0, p:{}, cota:0, teto:false, abaixo:false};
-      c.A += x.A||0; c.med += x.med||0; c.base += x.base||0; c.meta += x.meta||0; c.p[x.col] = (c.p[x.col]||0) + (x.meta||0); if (x.cotaPI) c.cota += x.meta; if (x.acimaTeto) c.teto = true; if (x.abaixo) c.abaixo = true; });
-    const lista = Object.values(carts).filter(c => c.meta >= 0.5 && c.cart !== '(sem carteira)' && c.cart !== '(sem vendedor)');
-    const nos = lista.filter(c => !c.outra).sort((a,b) => b.meta - a.meta), fora = lista.filter(c => c.outra).sort((a,b) => b.meta - a.meta);
-    const CAR = {}; (MTA.D.carteiras||[]).forEach(c => CAR[c.codigo] = c.consultor_nome);
-    const cols = MT_COL.filter(p => mp(p) > 0 || lista.some(c => (c.p[p]||0) >= 0.5));
-    const lin = c => `<tr><td><b>${c.cart === 'SNP 01' ? 'SNP 01 <small>(MA 03)</small>' : esc(c.cart)}</b>${!c.outra && CAR[c.cart] ? `<br><span class="sub">${esc(CAR[c.cart])}</span>` : ''}${c.cota?` <span class="tag">cota MA ${nf(c.cota)}</span>`:''}${c.teto?' <span class="tag warn">acima do teto</span>':''}${c.abaixo?' <span class="tag">no piso</span>':''}</td>
-      ${cols.map(p => `<td class="r">${(c.p[p]||0) >= 0.5 ? nf(c.p[p]) : '–'}</td>`).join('')}<td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r">${c.meta-c.base>=0?'+':''}${nf(c.meta-c.base)}</td><td class="r">${c.base ? `<span class="${c.meta>=c.base?'up':'dn'}">${c.meta>=c.base?'+':''}${nf(100*(c.meta/c.base-1),0)}%</span>` : '–'}</td><td class="r"><b class="mtm">${nf(c.meta)}</b></td></tr>`;
-    const sub = (t, arr) => `<tr class="mtsubt"><td><b>${t}</b></td>${cols.map(p => `<td class="r"><b>${nf(arr.reduce((s,c) => s + (c.p[p]||0), 0))}</b></td>`).join('')}<td class="r">${nf(arr.reduce((s,c) => s + c.med, 0))}</td><td class="r">${nf(arr.reduce((s,c) => s + c.base, 0))}</td><td class="r">${(g => (g>=0?'+':'') + nf(g))(arr.reduce((s,c) => s + c.meta - c.base, 0))}</td><td></td><td class="r"><b>${nf(arr.reduce((s,c) => s + c.meta, 0))}</b></td></tr>`;
-    const dif = aloc - meta;
-    return `<div class="mtgrp"><div class="mtgh"><div><h4>${nome}</h4><span class="sub">${fs.map(f => MT_NOMEF[f]).join(' + ')} · base ${nf(base)} m³ · crescimento ${meta-base>=0?'+':''}${nf(meta-base)} m³ (${base?nf(100*(meta/base-1),0):'–'}%)${Math.abs(dif) > 1 ? ` · <b style="color:var(--coral)">distribuído ${nf(aloc)} m³ (${dif>0?'+':''}${nf(dif)} pelo piso)</b>` : ''}</span></div>
-      <div class="mtgk">${cols.map(p => `<div><span>${MT_NOMEP[p]}</span><b>${nf(mp(p))}</b></div>`).join('')}<div class="tot"><span>Meta REG3</span><b>${nf(meta)}</b></div></div></div>
-      <div class="scroll"><table class="mtt"><tr><th>Carteira</th>${cols.map(p => `<th class="r">${MT_NOMEP[p]}</th>`).join('')}<th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Crescimento</th><th class="r">vs base</th><th class="r">Meta</th></tr>
-      ${nos.map(lin).join('')}${sub('Total equipe', nos)}
-      ${fora.length ? `<tr class="mtsep"><td colspan="${cols.length+6}">Bahia / COF · outras carteiras</td></tr>${fora.map(lin).join('')}${sub('Total Bahia / COF', fora)}` : ''}
-      ${sub('Total ' + nome, lista)}</table></div></div>`;
-  }).join('');
 }
 
 async function telaPedidos() {
