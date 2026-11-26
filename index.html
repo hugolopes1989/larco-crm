@@ -165,6 +165,18 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .ptab td small,.ptab th small{display:block;font-size:11.5px;color:var(--mut);font-weight:500}
 .ptab td b.neg{color:var(--coral)}.ptab td b.avn{color:#127a3e}.ptab td b.zer{color:var(--amb)}.ptab .mut,.mut{color:var(--mut)}
 .pgr{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}.pgr>div{overflow-x:auto}
+.pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:6px 0 14px}
+.pcard{background:#fff;border:1px solid #e3e7f1;border-radius:14px;padding:14px 16px}.pcard.neg{border-color:#f0a9a3;background:#fffafa}
+.pcard .pl{font:600 13px Inter,sans-serif;color:var(--mut)}.pcard .pv{font:800 24px Inter,sans-serif;color:var(--ink,#0f1b4c);margin:2px 0}.pcard.neg .pv,.pcard .neg{color:#c8302a}
+.pcard .ps{font-size:12.5px;color:var(--mut)}.pbar{height:10px;border-radius:6px;background:#eef1f7;position:relative;overflow:hidden;margin:10px 0 4px}.pbar i{position:absolute;top:0;bottom:0}
+.pbar .u{background:#2f6fd6}.pbar .r{background:#f6c56b}.pbar .o{background:#e2524a}
+.pcard .pt{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-top:1px solid #eef1f7}.pcard .pt small{color:var(--mut)}
+.pcard .pt.sai{color:var(--mut)}.pcard h4{margin:0 0 6px;font:700 15px Inter,sans-serif}.pcard h4 small{font-weight:500;color:var(--mut);margin-left:6px}
+.pcard .cg{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 10px;font-size:13px;padding:5px 0;border-top:1px solid #eef1f7}.pcard .cg b{font-size:14px}
+.pcard .cg .mb{grid-column:1/-1;grid-row:2}.pcard .cg>span:last-child{text-align:right}.pcard .mb{height:6px;border-radius:4px;background:#eef1f7;position:relative;overflow:hidden}.pcard .mb i{position:absolute;top:0;bottom:0}
+.rdots{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 18px;font-size:13px}.rdots b{display:inline-block;min-width:72px}
+.rd{display:inline-block;width:13px;height:13px;border-radius:3px;margin:0 2px;vertical-align:-2px;background:#eef1f7}.rd.ok{background:#bfe0a0}.rd.lim{background:#f6c56b}.rd.pas{background:#f09a93}
+.rleg{font-size:12.5px;color:var(--mut)}.rleg .rd{margin-left:8px}
 .mv .bh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .mv-pos{text-align:center;background:linear-gradient(135deg,var(--g),var(--g2));color:#fff;border-radius:14px;padding:8px 16px;min-width:110px}.mv-pos b{display:block;font:800 26px Poppins,sans-serif}.mv-pos span{font-size:11.5px;opacity:.9}
 .mv-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:8px 0 12px}
@@ -982,6 +994,43 @@ function alertaGestao(fil) {
     <ul>${neg.map(x => `<li>${esc(x.nome_filial)} · ${x.tipo === 'terminal' ? esc(x.terminal || '') : 'filial'} · <b>${GR[x.grupo] || esc(x.grupo)} ${nf(x.saldo)} L</b> <span class="mut">(gestão lançou ${nf(x.gestao)} L do SICOF)</span></li>`).join('')}</ul>
     <small>${quando}</small></div>` + baseTxt;
 }
+function barraCota(cota, usado, reserva) {
+  cota = +cota || 0; usado = +usado || 0; reserva = Math.max(+reserva || 0, 0);
+  if (!cota) return '<div class="pbar"></div>';
+  if (usado > cota) { const u = 100 * cota / usado; return `<div class="pbar"><i class="u" style="left:0;width:${u}%"></i><i class="o" style="left:${u}%;width:${100 - u}%"></i></div>`; }
+  const u = 100 * usado / cota, r = Math.min(100 * reserva / cota, 100 - u);
+  return `<div class="pbar"><i class="u" style="left:0;width:${u}%"></i>${r > 0 ? `<i class="r" style="left:${u}%;width:${r}%"></i>` : ''}</div>`;
+}
+function cartoesFilial(R, gs, ts) {
+  return `<div class="pcards">${gs.map(g => {
+    const f = lin('filial','',g) || {}, rb = lin('reserva','',g) || {}, vr = lin('virado','',g) || {};
+    const cota = +f.cota || 0, usado = +f.usado || 0, sd = cota - usado;
+    if (!cota && !usado && !+vr.usado) return '';
+    const resLivre = R.bandAberta ? Math.max((+rb.cota||0) - (+rb.usado||0), 0) : 0;
+    const livreCart = sd - resLivre;
+    const terms = ts.filter(t => t.grupos.includes(g)).map(t => { const l = lin('terminal', String(t.id), g);
+      if (!l) return `<div class="pt"><span>${esc(t.nome)}</span><small>sem cota</small></div>`;
+      const s = (+l.cota||0) - (+l.usado||0);
+      return `<div class="pt"><span>${esc(t.nome)}</span><span><b class="${s < 0 ? 'neg' : ''}">${nf(s)}</b> <small>/ ${nf(l.cota)}</small></span></div>`; }).join('');
+    return `<div class="pcard ${sd < 0 ? 'neg' : ''}"><div class="pl">${GR[g]}</div>
+      <div class="pv">${nf(sd)} L</div>
+      <div class="ps ${livreCart < 0 ? 'neg' : ''}">${sd < 0 ? 'acima da cota' : 'livres'}${resLivre ? ` · ${nf(livreCart)} para as carteiras` : ''}</div>
+      ${barraCota(cota, usado, resLivre)}
+      <div class="ps" style="margin-bottom:6px">${nf(usado)} lançado de ${nf(cota)}${+rb.usado || +rb.cota ? ` · bandeiras ${nf(rb.usado)}${R.bandAberta && +rb.cota ? ' de ' + nf(rb.cota) : ''}` : ''}</div>
+      ${terms}
+      <div class="pt sai"><span>Sai hoje</span><span>${nf(usado + (+vr.usado||0))}${+vr.usado ? ` · ${nf(vr.usado)} virados` : ''}</span></div></div>`; }).join('')}</div>`;
+}
+function cartoesCarteiras(R, gs, carts, cons) {
+  return `<div class="pcards">${carts.map(c => {
+    const linhas = gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '';
+      const cota = +l.cota || 0, usado = +l.usado || 0, sd = cota - usado;
+      const pct = cota ? Math.min(100 * usado / cota, 100) : 100;
+      const txt = sd < 0 ? (R.resAberta ? `<b class="neg">${nf(sd)}</b>` : `<b style="color:#a24c00">+${nf(-sd)}</b>`) : `<b>${nf(sd)}</b>`;
+      const sub = sd < 0 ? (R.resAberta ? 'passou da cota' : 'avançou') : 'disponível';
+      return `<div class="cg"><span>${GR[g]}</span><span>${txt} <small style="color:var(--mut)">${sub} · cota ${nf(cota)}</small></span><div class="mb"><i style="left:0;width:${pct}%;background:${sd < 0 ? (R.resAberta ? '#e2524a' : '#f0a24b') : '#2f6fd6'}"></i></div></div>`; }).join('');
+    if (!linhas) return '';
+    return `<div class="pcard"><h4>${esc(c)}<small>${esc(cons(c))}</small></h4>${linhas}</div>`; }).join('')}</div>`;
+}
 function desenharPed() {
   const R = relogio(); const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
   const ts = P.terms.filter(t => t.filial === P.fil);
@@ -1004,8 +1053,8 @@ function desenharPed() {
 
   const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort();
   const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'Bahia (sem consultor)' : '');
-  const ctab = carts.length ? `<table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
-    ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '<td class="r mut">—</td>'; const sd = (+l.cota||0) - (+l.usado||0); return sd < 0 && !R.resAberta ? `<td class="r"><b class="avn">+${nf(-sd)}</b><small>avançou · cota ${nf(l.cota)}</small></td>` : cel(l.cota, l.usado); }).join('')}</tr>`).join('')}</tbody></table>`
+  const ctab = carts.length ? cartoesCarteiras(R, gs, carts, cons) + `<details class="mut" style="margin-top:4px"><summary>Ver em tabela</summary><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
+    ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '<td class="r mut">—</td>'; const sd = (+l.cota||0) - (+l.usado||0); return sd < 0 && !R.resAberta ? `<td class="r"><b class="avn">+${nf(-sd)}</b><small>avançou · cota ${nf(l.cota)}</small></td>` : cel(l.cota, l.usado); }).join('')}</tr>`).join('')}</tbody></table></details>`
     : '<div class="empty">Nenhuma carteira sua tem peso nesta filial.</div>';
 
   const podeForm = podeLancar() && !R.passado;
@@ -1038,7 +1087,8 @@ function desenharPed() {
       ${ehOp() ? `<button class="btn sm" id="bCota">Cota da manhã</button><button class="btn sm sec" id="bPesos">Pesos das carteiras</button><button class="btn sm sec" id="bCob">Plantões e substituições</button><button class="btn sm sec" id="bLib" title="Enquanto não liberar, só você e o Gabriel veem esta filial">${fil.liberada_equipe ? '✓ Liberada para a equipe' : '🔒 Liberar para a equipe'}</button>` : ''}</div></div>
       ${avisos}
       ${temCota ? '' : `<div class="gnota">A cota desta filial ainda não foi lançada para ${dt(P.data)}.${ehOp() ? ' Clique em <b>Cota da manhã</b>.' : ' Aguarde o Hugo ou o Gabriel.'}</div>`}
-      <div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div>${resCart(R, gs)}</div></section>
+      ${cartoesFilial(R, gs, ts)}${resCart(R, gs)}
+      <details class="mut"><summary>Ver em tabela</summary><div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></details></section>
     <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota = (cota da filial − reserva das bandeiras) × peso. Até 10:30 cada carteira respeita a sua cota; depois todos podem avançar até o saldo livre da filial. Virados não descontam de nenhuma cota.</p></div></div>${ctab}</section>
     ${form}
     <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s</p></div></div>${lista}</section>
@@ -1333,6 +1383,12 @@ function resCart(R, gs) {
   const L = (P.painel?.linhas || []).filter(l => l.tipo === 'reserva_cart' && (+l.cota || +l.usado));
   if (!L.length) return '';
   const cs = [...new Set(L.map(l => l.chave))].sort();
+  const dot = (c, g) => { const l = L.find(x => x.chave === c && x.grupo === g); if (!l || !(+l.cota || +l.usado)) return `<i class="rd" title="${GR[g]}: sem reserva"></i>`;
+    const sb = (+l.cota||0) - (+l.usado||0); const k = sb < 0 ? 'pas' : (+l.cota && sb <= 0.1 * +l.cota) ? 'lim' : 'ok';
+    return `<i class="rd ${k}" title="${GR[g]}: usado ${nf(l.usado)} de ${nf(l.cota)} · ${sb >= 0 ? 'sobra ' + nf(sb) : 'passou ' + nf(-sb)}"></i>`; };
+  if (R.bandAberta) return `<div class="pcard" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px"><b>Reserva das bandeiras · até 14:00</b><span class="rleg"><i class="rd ok"></i>sobra<i class="rd lim"></i>no limite<i class="rd pas"></i>passou</span></div>
+    <div class="rdots">${cs.map(c => `<div><b>${esc(c)}</b>${gs.map(g => dot(c, g)).join('')}</div>`).join('')}</div>
+    <div class="rleg" style="margin-top:8px">Pontos na ordem ${gs.map(g => GR[g]).join(' · ')}. Passe o mouse (ou toque) para ver os litros.</div></div>`;
   return `<div><h3>Reserva das bandeiras por carteira <small class="sub">${R.bandAberta ? 'até 14:00 · usado / reservado' : 'liberada às 14:00 · usado'}</small></h3><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
     ${cs.map(c => `<tr><td><b>${esc(c)}</b></td>${gs.map(g => { const l = L.find(x => x.chave === c && x.grupo === g); if (!l) return '<td class="r mut">—</td>'; const sb = (+l.cota||0) - (+l.usado||0);
       return `<td class="r">${nf(l.usado)}${R.bandAberta && +l.cota ? `<small>de ${nf(l.cota)} · ${sb >= 0 ? 'sobra ' + nf(sb) : 'passou ' + nf(-sb)}</small>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
