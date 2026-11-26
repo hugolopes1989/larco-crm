@@ -960,7 +960,7 @@ const errTxt = e => { try { return JSON.parse(e.message).message || e.message; }
 const MT_FIL = ['16','24','17','38','29','32'];
 const MT_COL = ['GAS','ETA','S10','S500'];
 const MT_PAR0 = { wSet:25, wOut:35, wNov:40,
-  ma04Reat:30, fixas:'PE EMB01', ajustes:'', alerta:25,
+  ma04Reat:30, fixas:'PE EMB01', ajustes:'', alerta:25, fechar:1, capFora:12, cortarFora:0,
   piRaio:100, piConv:10, piMax:200, piFil:'17' };
 
 function calcMetas(D, P) {
@@ -1028,6 +1028,26 @@ function calcMetas(D, P) {
   Object.entries(AJ).forEach(([c, v]) => { const ls = linhas.filter(x => x.cart.toUpperCase() === c); const cota = ls.filter(x => x.cotaPI).reduce((s,x) => s + x.meta, 0);
     const resto = ls.filter(x => !x.cotaPI); const t = resto.reduce((s,x) => s + x.meta, 0); if (t > 0) resto.forEach(x => { x.meta *= Math.max(0, v - cota) / t; x.ajuste = true; }); });
 
+  // fechar 100%: Bahia / COF sobe até o teto (% do produto na filial); o resto vai para as nossas carteiras (proporcional)
+  if (P.fechar) MT_FIL.forEach(f => MT_COL.forEach(p => {
+    const meta = MF[f+'|'+p]||0; if (!meta) return;
+    const ls = linhas.filter(x => x.fil === f && x.col === p);
+    const fora = ls.filter(x => x.outra), nos = ls.filter(x => !x.outra);
+    const flex = nos.filter(x => !x.cotaPI && !x.ajuste && x.regra !== 'fixa');
+    const travado = nos.filter(x => !flex.includes(x)).reduce((s,x) => s + x.meta, 0);
+    const cap = meta * P.capFora / 100;
+    let sFora = fora.reduce((s,x) => s + x.meta, 0), sFlex = flex.reduce((s,x) => s + x.meta, 0);
+    const gap = meta - travado - sFora - sFlex;
+    // o teto vale para o aumento: quem já está acima do teto fica como está (P.cortarFora corta até o teto)
+    let alvoFora = sFora;
+    if (gap > 0 && sFora < cap) alvoFora = Math.min(cap, sFora + gap);
+    if (P.cortarFora && sFora > cap) alvoFora = cap;
+    if (!fora.length) alvoFora = 0;
+    if (sFora > 0) fora.forEach(x => { x.metaAntesFechar = x.meta; x.meta *= alvoFora / sFora; x.fechou = true; });
+    const alvoFlex = Math.max(0, meta - travado - alvoFora);
+    if (sFlex > 0) flex.forEach(x => { x.metaAntesFechar = x.meta; x.meta *= alvoFlex / sFlex; x.fechou = true; });
+  }));
+
   // 4) fechamento por filial × produto: meta da gestão = meta REG3 − carteiras
   const checks = []; MT_FIL.forEach(f => MT_COL.forEach(p => {
     const ls = linhas.filter(x => x.fil === f && x.col === p);
@@ -1070,11 +1090,11 @@ async function telaMetas() {
   $('#bHome').onclick = irHome;
   try {
     MTA.D = await rpc('dados_meta', {p_mes: MTA.mes});
-    if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_par4') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); }
+    if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_par5') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); }
     mtRender();
   } catch(e) { $('#mtBody').innerHTML = `<main class="eq" style="margin-top:20px"><div class="empty">Não consegui carregar os dados: ${esc(e.message||e)}</div></main>`; }
 }
-function mtSalvarPar() { try { localStorage.setItem('larco_mt_par4', JSON.stringify(MTA.P)); } catch(e) {} }
+function mtSalvarPar() { try { localStorage.setItem('larco_mt_par5', JSON.stringify(MTA.P)); } catch(e) {} }
 function mtNum(k, label, min, max, step, suf, dica) {
   return `<label class="mtp" title="${esc(dica||'')}"><span>${label}</span><div><input type="range" min="${min}" max="${max}" step="${step}" value="${MTA.P[k]}" data-k="${k}"><input type="number" min="${min}" max="${max}" step="${step}" value="${MTA.P[k]}" data-k="${k}"><em>${suf}</em></div></label>`;
 }
@@ -1123,6 +1143,12 @@ function mtRender() {
         ${mtNum('alerta','Marcar "revisar" acima da base em',5,100,5,'%','Carteiras cuja meta passa esse % da base dos últimos 3 meses.')}
         ${(() => { const rv = R.cartList.filter(c => !c.outra && !c.ajuste && c.base > 0 && 100*(c.meta/c.base-1) > P.alerta); return rv.length ? `<p class="sub"><b>Para revisar:</b> ${rv.map(c => `${esc(c.cart)} (+${nf(100*(c.meta/c.base-1),0)}% sobre a base)`).join(' · ')}</p>` : '<p class="sub">Nenhuma carteira muito acima da base.</p>'; })()}
       </div>
+      <div class="mtc"><h4>Fechar 100% da meta</h4>
+        <label class="mtp" title="Fecha a meta de cada filial e produto: primeiro sobe a Bahia / COF até o teto, o resto vai para as nossas carteiras (todas no mesmo %)."><span>Fechar 100%</span><div><select data-k="fechar"><option value="1" ${P.fechar?'selected':''}>Ligado</option><option value="0" ${!P.fechar?'selected':''}>Desligado (sobra vira meta da gestão)</option></select></div></label>
+        ${mtNum('capFora','Teto da Bahia / COF no produto',0,50,1,'%','A Bahia / COF só recebe aumento até esse % da meta do produto na filial.')}
+        <label class="mtp" title="Onde a Bahia / COF já vende mais que o teto: manter o que já vendem, ou cortar até o teto (o volume cortado passa para as nossas carteiras)."><span>Onde já passa do teto</span><div><select data-k="cortarFora"><option value="0" ${!P.cortarFora?'selected':''}>Manter o que já vendem</option><option value="1" ${P.cortarFora?'selected':''}>Cortar até o teto</option></select></div></label>
+        ${(() => { const ac = R.checks.filter(c => c.meta > 0 && 100*c.fora/c.meta > P.capFora + 0.5); return ac.length ? `<p class="sub">Bahia / COF acima de ${nf(P.capFora)}%: ${ac.map(c => `${MT_NOMEF[c.fil]} ${MT_NOMEP[c.col]} ${nf(100*c.fora/c.meta,0)}%`).join(' · ')}</p>` : `<p class="sub">Bahia / COF dentro de ${nf(P.capFora)}% em todos os produtos.</p>`; })()}
+      </div>
       <div class="mtc"><h4>Cota do PI 01 no Maranhão</h4>
         ${mtNum('piRaio','Raio a partir de Teresina',0,200,10,'km','Prospects bandeira branca do MA dentro desse raio (Timon, Caxias, Matões…).')}
         ${mtNum('piConv','Conversão desses prospects',0,30,1,'%','Parte do volume de mercado desses postos que vira cota.')}
@@ -1156,7 +1182,7 @@ function mtGestCel(g) { return Math.abs(g) < 0.5 ? '<span class="okp">✓</span>
 function mtResumo(R) {
   const agg = (fs, p) => R.checks.filter(c => fs.includes(c.fil) && (!p || c.col === p)).reduce((a,c) => ({meta:a.meta+c.meta, ant:a.ant+c.metaAnt, nos:a.nos+c.nos, fora:a.fora+c.fora, g:a.g+c.gestao}), {meta:0,ant:0,nos:0,fora:0,g:0});
   const td = c => c.meta <= 0 && c.nos + c.fora < 0.5 ? '<td class="r sub">–</td>' : `<td class="r"><b>${nf(c.meta)}</b><br>${mtGestCel(c.g)}</td>`;
-  const row = (nome, fs) => { const t = agg(fs); return `<tr><td><b>${nome}</b></td>${MT_COL.map(p => td(agg(fs, p))).join('')}<td class="r">${nf(t.ant)}</td><td class="r"><b>${nf(t.meta)}</b></td><td class="r">${nf(t.nos)}</td><td class="r">${nf(t.fora)}</td><td class="r">${mtGestCel(t.g)}</td><td class="r"><b>${nf(100*(t.nos+t.fora)/(t.meta||1),0)}%</b></td></tr>`; };
+  const row = (nome, fs) => { const t = agg(fs); return `<tr><td><b>${nome}</b></td>${MT_COL.map(p => td(agg(fs, p))).join('')}<td class="r">${nf(t.ant)}</td><td class="r"><b>${nf(t.meta)}</b></td><td class="r">${nf(t.nos)}</td><td class="r">${nf(t.fora)} <small>(${nf(100*t.fora/(t.meta||1),0)}%)</small></td><td class="r">${mtGestCel(t.g)}</td><td class="r"><b>${nf(100*(t.nos+t.fora)/(t.meta||1),0)}%</b></td></tr>`; };
   return `<div class="mtres"><h4>Resumo · meta da filial = equipe + Bahia / COF + gestão</h4>
     <div class="scroll"><table class="mtt"><tr><th>Base</th>${MT_COL.map(p => `<th class="r">${MT_NOMEP[p]}<br><small>meta · gestão</small></th>`).join('')}<th class="r">Meta ${mtMesCurto(R.meses.N)}</th><th class="r">Meta ${mtMesCurto(MTA.mes.slice(0,7))}</th><th class="r">Equipe</th><th class="r">Bahia / COF</th><th class="r">Gestão</th><th class="r">Coberto pelas carteiras</th></tr>
     ${MT_GRUPOS.map(([n, fs]) => row(n, fs)).join('')}${row('REG3', MT_FIL).replace('<tr>', '<tr class="mtsubt">')}</table></div>
