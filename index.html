@@ -218,6 +218,28 @@ main.eq.ped{margin-top:16px}
 .mtab tr.mpct td{color:var(--mut);font-size:12px;border-bottom:0}
 .vtag{font-style:normal;font:700 9.5px Inter,sans-serif;background:#fff1df;color:#a24c00;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle}
 .mstrip{margin-bottom:14px}
+body.noel header{background-image:radial-gradient(rgba(255,255,255,.28) 1px,transparent 1.6px),radial-gradient(rgba(255,255,255,.16) 1px,transparent 1.6px);background-size:42px 42px,26px 26px;background-position:0 0,13px 19px}
+.noel-faixa{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:linear-gradient(90deg,#0f1a55,#16226e);color:#fff;padding:9px max(3vw,14px);border-bottom:2px solid var(--ye);font:500 14px Inter,sans-serif}
+.noel-faixa b{color:var(--ye)}.noel-faixa small{opacity:.75;margin-left:6px}.nf-a{display:flex;gap:8px}
+.nf-b{border:0;border-radius:999px;padding:7px 14px;font:700 13px Poppins,sans-serif;background:var(--or);color:#fff;cursor:pointer}.nf-b.sec{background:rgba(255,255,255,.14)}
+.noel-box{display:flex;gap:20px;flex-wrap:wrap;width:min(860px,100%);max-height:92vh;overflow:auto}.noel-img{width:min(320px,100%);border-radius:14px;align-self:flex-start}
+.noel-cx{flex:1 1 300px;display:flex;flex-direction:column;gap:6px}.noel-eb{margin:0;font:700 12px Inter,sans-serif;letter-spacing:1.5px;color:var(--or);text-transform:uppercase}
+.noel-cx h3{font-size:24px}.noel-des{margin:0;font:600 21px/1.35 Poppins,sans-serif;color:var(--ink)}.noel-val{margin:0;font-weight:700;color:var(--coral)}
+.noel-meu,.noel-reg{margin:0;color:var(--mut)}.noel-meu b,.noel-reg b{color:var(--g)}
+.noel-caixa{width:74px;height:62px;position:relative;margin:6px 0}.noel-caixa::before{content:'';position:absolute;inset:18px 0 0;background:var(--or);border-radius:6px}.noel-caixa::after{content:'';position:absolute;left:-4px;right:-4px;top:4px;height:16px;background:#ff9f4a;border-radius:5px;animation:noelTampa 1.2s ease-out forwards}.noel-caixa i{position:absolute;left:31px;top:4px;width:12px;bottom:0;background:var(--ye);z-index:1}
+@keyframes noelTampa{0%{transform:none}60%{transform:translate(18px,-22px) rotate(28deg)}100%{transform:translate(16px,-18px) rotate(24deg)}}
+.noel-abox{width:min(980px,100%);max-height:92vh;overflow:auto}.na-h{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.na-g{display:flex;flex-wrap:wrap;gap:18px;margin-top:10px}.na-tree{flex:2 1 420px;background:radial-gradient(circle at 50% 30%,#1f2f8a,#0d1548);border-radius:16px;padding:18px 10px 14px;text-align:center;color:#fff}
+.na-star{font-size:46px;line-height:1;color:#5b6386}.na-star.on{color:var(--ye);text-shadow:0 0 18px var(--ye)}
+.na-rows{display:flex;flex-direction:column;gap:6px;align-items:center;background:linear-gradient(#1f7a4d,#155a38);clip-path:polygon(50% 0,100% 100%,0 100%);padding:30px 6% 14px;margin:2px auto 0;width:min(560px,100%)}
+.na-row{display:flex;gap:6px;justify-content:center}.na-tronco{width:44px;height:22px;background:#7a4a26;margin:0 auto}.na-tot{margin:10px 0 0;font:600 13px Inter,sans-serif;opacity:.85}
+.nb{display:flex;flex-direction:column;align-items:center;width:70px}.nb-c{width:44px;height:44px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#3a4a66;border:3px solid #5b6386;filter:grayscale(1);opacity:.6}
+.nb-c img{width:100%;height:100%;object-fit:cover}.nb-c b{font:700 14px Poppins,sans-serif}
+.nb.on .nb-c{filter:none;opacity:1;border-color:var(--or);box-shadow:0 0 14px var(--or)}.nb.ouro .nb-c{filter:none;opacity:1;border-color:var(--ye);box-shadow:0 0 18px var(--ye)}
+.nb.eu .nb-n{color:var(--ye)}.nb-n{font:700 11px Inter,sans-serif;margin-top:2px;white-space:nowrap}.nb-p{font:600 11px Inter,sans-serif;opacity:.9}
+.na-rank{flex:1 1 220px}.na-rank h4,.na-adm h4{margin:0 0 6px;font:700 15px Poppins,sans-serif;color:var(--g)}.na-rank ol{margin:0;padding-left:22px}.na-rank li{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)}.na-rank li.eu{font-weight:700;color:var(--or)}
+.na-adm{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}.na-chk{display:flex;flex-wrap:wrap;gap:8px 16px}.na-chk label{display:flex;gap:6px;align-items:center;cursor:pointer}
+@media (max-width:640px){.noel-faixa{font-size:13px}.nb{width:56px}.nb-c{width:36px;height:36px}}
 </style>
 </head>
 <body>
@@ -1541,6 +1563,123 @@ async function abrirMeta() {
     try { await api('meta_dia?on_conflict=filial,coluna,valido_desde', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(body)});
       d.remove(); toast('Meta salva'); await carregarGeral(); } catch(x) { toast('Erro ao salvar: ' + errTxt(x)); }
   };
+}
+
+/* ---------- LARCO NOEL (campanha dez/2026) ----------
+   Liga sozinho de 01 a 31/12. Para testar antes: abra o CRM com ?natal=1 no endereço. */
+const NOEL = { ini:'2026-12-01', fim:'2026-12-31', fimJanelas:'2026-12-24', jan:null, abertas:[], pres:[], vend:null, t:0, boot:false, reg:null, diaSel:null };
+const noelTeste = (() => { const q = /[?&]natal=1/.test(location.search); try { if (q) sessionStorage.setItem('larconoel_teste','1'); return sessionStorage.getItem('larconoel_teste') === '1'; } catch(e) { return q; } })();
+const noelHoje = () => iso(hojeSP());
+const noelAtivo = () => { if (!S.me || S.me.perfil === 'faturamento') return false; const h = noelHoje(); return noelTeste || (h >= NOEL.ini && h <= NOEL.fim); };
+const noelMinhas = () => new Set((S.me?.usuario_carteiras || []).map(c => c.carteira_codigo));
+async function noelCarregar() {
+  const h = noelHoje();
+  try { let j = await api(`natal_janelas?dia=eq.${h}&select=*`);
+    if (!j.length && noelTeste && h < NOEL.ini) j = await api('natal_janelas?select=*&order=dia&limit=1');
+    NOEL.jan = j[0] || null; } catch(e) { NOEL.jan = null; }
+  try { NOEL.abertas = await api('natal_janelas?select=dia,titulo,presentes,coletiva&order=dia'); } catch(e) { NOEL.abertas = []; }
+  try { NOEL.pres = await api('natal_presentes?select=dia,carteira,qtd'); } catch(e) { NOEL.pres = []; }
+  try { NOEL.vend = await rpc('painel_vendas_consultor', {p_data:h}); } catch(e) { NOEL.vend = null; }
+  NOEL.t = Date.now();
+}
+function noelLista() {
+  const V = NOEL.vend; if (!V || !V.carteiras) return [];
+  const dm = +V.dias_mes || 1, da = +V.dias_ate_hoje || 1, pd = pesoDia(noelHoje()), g = {};
+  V.carteiras.forEach(c => { const k = c.consultor || c.carteira;
+    const x = g[k] = g[k] || {nome:k, regiao:c.regiao || 'Outras', carts:[], conf:0, fat:0, meta:0};
+    x.carts.push(c.carteira); x.conf += +c.conf_m3 || 0; x.fat += +c.fat_mes_m3 || 0; if (c.meta_mes_m3 != null) x.meta += +c.meta_mes_m3; });
+  const pc = {}; NOEL.pres.forEach(p => pc[p.carteira] = (pc[p.carteira] || 0) + (+p.qtd || 0));
+  return Object.values(g).map(x => { const real = x.fat + x.conf, metaDia = x.meta ? x.meta / dm * pd : 0, metaAte = x.meta ? x.meta * da / dm : 0;
+    return {...x, real, metaDia, pct: x.meta ? 100 * real / x.meta : null, presentes: x.carts.reduce((t, c) => t + (pc[c] || 0), 0),
+      bola: metaAte && real >= metaAte ? 'ouro' : metaDia && x.conf >= metaDia ? 'on' : 'off'}; });
+}
+function noelDiasRest() { let t = 0; const d = hojeSP(); d.setHours(12,0,0,0); const fim = new Date(2026, 11, 31, 12);
+  while (d <= fim) { const w = d.getDay(); if (iso(d) !== '2026-12-25') t += w === 0 ? 0 : w === 6 ? 0.5 : 1; d.setDate(d.getDate() + 1); } return t; }
+function noelFaixa() {
+  const rev = noelHoje() > NOEL.fimJanelas && !noelTeste, j = NOEL.jan;
+  const txt = rev ? `🎆 <b>Contagem pro Réveillon</b> · faltam ${String(noelDiasRest()).replace('.', ',')} dias úteis para fechar a meta. Bora acender a estrela!`
+    : j ? `🎁 <b>${esc(j.titulo)}</b> · ${esc(j.desafio)} <small>Vale até o fechamento de hoje.</small>`
+    : '🎄 <b>Larco Noel</b> · hoje não tem janela. Bata a meta do dia e acenda a sua bola!';
+  return `<div class="noel-faixa" id="noelFaixa"><span class="nf-t">${txt}</span><span class="nf-a">${j && !rev ? '<button type="button" class="nf-b sec" id="noelJan">Abrir janela</button>' : ''}<button type="button" class="nf-b" id="noelArv">🎄 Ver árvore</button></span></div>`;
+}
+function noelInjetar() {
+  const hd = document.querySelector('#app header'); if (!hd || document.getElementById('noelFaixa')) return;
+  document.body.classList.add('noel'); hd.insertAdjacentHTML('afterend', noelFaixa());
+  document.getElementById('noelArv').onclick = noelArvore;
+  const bj = document.getElementById('noelJan'); if (bj) bj.onclick = noelPopup;
+}
+async function noelBoot() {
+  NOEL.boot = true; await noelCarregar();
+  const f = document.getElementById('noelFaixa'); if (f) f.remove(); noelInjetar();
+  const h = noelHoje(); if (!NOEL.jan || (h > NOEL.fimJanelas && !noelTeste)) return;
+  const k = `larconoel_${h}_${S.me.id}`; try { if (localStorage.getItem(k) && !noelTeste) return; localStorage.setItem(k, '1'); } catch(e) {}
+  noelPopup();
+}
+new MutationObserver(() => {
+  if (!S.me) { NOEL.boot = false; document.body.classList.remove('noel'); return; }
+  if (!noelAtivo()) return;
+  if (!NOEL.boot) noelBoot(); else noelInjetar();
+}).observe(document.getElementById('app'), {childList:true});
+function noelPopup() {
+  const j = NOEL.jan; if (!j || document.querySelector('.noel-pop')) return;
+  const mc = noelMinhas(), meu = noelLista().find(x => x.carts.some(c => mc.has(c)));
+  const nome = (S.me.nome || '').split(' ')[0];
+  const d = document.createElement('div'); d.className = 'modal noel-pop';
+  d.innerHTML = `<div class="mbox noel-box"><img src="natal/larco-noel.jpg" alt="Arte da campanha Larco Noel" class="noel-img">
+    <div class="noel-cx"><p class="noel-eb">${noelTeste && noelHoje() < NOEL.ini ? 'PRÉVIA · ' : ''}${esc(dt(j.dia))} · ${esc(j.titulo)}</p>
+    <div class="noel-caixa" aria-hidden="true"><i></i></div>
+    <h3>${j.coletiva ? 'Desafio coletivo de hoje' : `Seu desafio de hoje${nome ? ', ' + esc(nome) : ''}`}</h3>
+    <p class="noel-des">${esc(j.desafio)}</p>
+    <p class="noel-val">Vale ${j.presentes > 1 ? `${j.presentes} presentes 🎁🎁` : '1 presente 🎁'} · até o fechamento de hoje</p>
+    ${meu ? `<p class="noel-meu">Você tem <b>${meu.presentes}</b> 🎁 na árvore${meu.metaDia ? ` · meta do dia: <b>${nf(meu.metaDia,1)} m³</b>` : ''}</p>` : ''}
+    <p class="noel-reg">Quem juntar mais presentes até o fechamento vira o <b>Noel de Ouro</b> e leva o brinde!</p>
+    <div class="mact"><button type="button" class="btn sec" id="nArv">Ver árvore</button><button type="button" class="btn" id="nOk">Bora! 🚀</button></div></div></div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('#nOk').onclick = () => d.remove();
+  d.querySelector('#nArv').onclick = () => { d.remove(); noelArvore(); };
+}
+async function noelArvore() {
+  let d = document.querySelector('.noel-arv');
+  if (!d) { d = document.createElement('div'); d.className = 'modal noel-arv'; d.innerHTML = '<div class="mbox noel-abox"><p class="sub">Carregando a árvore…</p></div>'; document.body.appendChild(d);
+    d.onclick = e => { if (e.target === d) d.remove(); }; }
+  await noelCarregar();
+  const L = noelLista(), mc = noelMinhas(), adm = !!S.podeMeta, h = noelHoje();
+  const regs = REGIOES.filter(r => L.some(x => x.regiao === r)).concat([...new Set(L.map(x => x.regiao))].filter(r => !REGIOES.includes(r)));
+  const minha = (L.find(x => x.carts.some(c => mc.has(c))) || {}).regiao;
+  if (!NOEL.reg || !regs.includes(NOEL.reg)) NOEL.reg = minha || regs[0];
+  const abertas = NOEL.abertas.filter(j => j.dia <= h || noelTeste);
+  if (!NOEL.diaSel || !abertas.some(j => j.dia === NOEL.diaSel)) NOEL.diaSel = (abertas.filter(j => j.dia <= h).pop() || abertas[0] || {}).dia;
+  const jSel = abertas.find(j => j.dia === NOEL.diaSel);
+  const ganhou = new Set(NOEL.pres.filter(p => p.dia === NOEL.diaSel).map(p => p.carteira));
+  const LR = L.filter(x => x.regiao === NOEL.reg);
+  const tMeta = LR.reduce((t, x) => t + x.meta, 0), tReal = LR.reduce((t, x) => t + x.real, 0);
+  const estrela = tMeta && tReal >= tMeta;
+  const rows = []; let i = 0, n = 1; while (i < LR.length) { rows.push(LR.slice(i, i + n)); i += n; n++; }
+  const bola = x => { const key = avKey(x.nome), eu = x.carts.some(c => mc.has(c));
+    return `<div class="nb ${x.bola}${eu ? ' eu' : ''}" title="${esc(x.nome)} · ${x.bola === 'ouro' ? 'acumulado acima da meta' : x.bola === 'on' ? 'bateu a meta do dia' : 'ainda apagada'}">
+      <span class="nb-c">${AV[key] ? avImg(key) : `<b>${esc(iniciais(x.nome))}</b>`}</span><span class="nb-n">${esc((x.nome || '').split(' ')[0])}</span><span class="nb-p">${x.presentes ? '🎁×' + x.presentes : '—'}</span></div>`; };
+  const rank = [...L].sort((a, b) => b.presentes - a.presentes || (b.pct || 0) - (a.pct || 0)).slice(0, 10);
+  d.querySelector('.mbox').outerHTML = `<div class="mbox noel-abox"><div class="na-h"><div><h3>🎄 Árvore Larco Noel</h3><p class="sub">Bola acesa = bateu a meta do dia · dourada = acumulado acima da meta · a estrela acende quando a equipe bate a meta do mês.</p></div><button type="button" class="btn sec" id="naX">Fechar</button></div>
+    <div class="chips mv-reg">${regs.map(r => `<button type="button" data-r="${esc(r)}" class="${r === NOEL.reg ? 'on' : ''}">${esc(r)}</button>`).join('')}</div>
+    <div class="na-g"><div class="na-tree"><div class="na-star ${estrela ? 'on' : ''}">★</div><div class="na-rows">${rows.map(r => `<div class="na-row">${r.map(bola).join('')}</div>`).join('') || '<p class="sub">Sem dados de vendas para esta equipe.</p>'}</div><div class="na-tronco"></div>
+      <p class="na-tot">${tMeta ? `Equipe: ${nf(tReal)} de ${nf(tMeta)} m³ (${nf(100 * tReal / tMeta, 0)}%)` : 'Equipe sem meta cadastrada'}</p></div>
+      <div class="na-rank"><h4>Corrida pelo Noel de Ouro</h4><ol>${rank.map(x => `<li class="${x.carts.some(c => mc.has(c)) ? 'eu' : ''}"><span>${esc(x.nome)}</span><b>${x.presentes} 🎁</b></li>`).join('')}</ol><p class="sub">Empate: vence o maior % da meta do mês.</p></div></div>
+    ${adm && jSel ? `<div class="na-adm"><h4>Marcar presentes</h4><label class="sub">Janela <select id="naDia">${abertas.map(j => `<option value="${j.dia}" ${j.dia === NOEL.diaSel ? 'selected' : ''}>${esc(dt(j.dia))} · ${esc(j.titulo)}</option>`).join('')}</select></label>
+      <p class="sub">${esc(jSel.titulo)} vale ${jSel.presentes} 🎁 · clique em quem cumpriu (${esc(NOEL.reg)}).${jSel.coletiva ? ' <button type="button" class="btn sec" id="naTodos">Marcar a equipe toda</button>' : ''}</p>
+      <div class="na-chk">${LR.map(x => `<label><input type="checkbox" data-c="${esc(x.carts[0])}" ${x.carts.some(c => ganhou.has(c)) ? 'checked' : ''}> ${esc(x.nome)}</label>`).join('')}</div></div>` : ''}</div>`;
+  d.querySelector('#naX').onclick = () => d.remove();
+  d.querySelectorAll('.mv-reg button').forEach(b => b.onclick = () => { NOEL.reg = b.dataset.r; noelArvore(); });
+  if (!adm || !jSel) return;
+  d.querySelector('#naDia').onchange = e => { NOEL.diaSel = e.target.value; noelArvore(); };
+  const marcar = async (cart, on) => {
+    if (on) await api('natal_presentes?on_conflict=dia,carteira', {method:'POST', headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify({dia:jSel.dia, carteira:cart, qtd:jSel.presentes})});
+    else await api(`natal_presentes?dia=eq.${jSel.dia}&carteira=eq.${encodeURIComponent(cart)}`, {method:'DELETE'});
+  };
+  d.querySelectorAll('.na-chk input').forEach(c => c.onchange = async () => {
+    try { await marcar(c.dataset.c, c.checked); toast(c.checked ? 'Presente entregue 🎁' : 'Presente removido'); noelArvore(); } catch(x) { c.checked = !c.checked; toast('Erro ao salvar o presente'); } });
+  const bt = d.querySelector('#naTodos'); if (bt) bt.onclick = async () => {
+    try { for (const x of LR) await marcar(x.carts[0], true); toast('Equipe toda ganhou 🎁'); noelArvore(); } catch(x) { toast('Erro ao salvar os presentes'); } };
 }
 
 /* ---------- START ---------- */
