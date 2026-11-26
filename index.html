@@ -190,6 +190,7 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .tag.gst{background:#e8ecf8;color:#1f3a8a;font-weight:700}
 .fat-t{margin:14px 0 6px;font:700 15px Inter,sans-serif}.fat-t small{font-weight:500;color:var(--mut);margin-left:6px}.ptab tr.tot td{border-top:2px solid #d6dbea}
 .galert{background:#fdecea;border:1px solid #f3b8b3;color:#8f1f18;border-radius:12px;padding:10px 14px;margin:0 0 12px;font:500 13.5px Inter,sans-serif}.galert b{color:#b32a22}.galert ul{margin:6px 0 0 18px;padding:0}.galert small{display:block;color:#8f1f18;opacity:.8;margin-top:4px}
+.galert.gbase{background:#fff6e6;border-color:#f3d39b;color:#7a4a00}.galert.gbase b{color:#7a4a00}.galert.gbase small{color:#7a4a00}
 .gok{background:#eef1f9;color:var(--mut);border-radius:12px;padding:8px 14px;margin:0 0 12px;font:500 13px Inter,sans-serif}
 .palerta{margin-top:8px;background:#fff6e6;border:1px solid #f3c27a;color:#7a3e00;border-radius:10px;padding:9px 12px;font-size:13.5px}.palerta select{padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 .cobl{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}.cobi{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.cobi small{display:block;color:var(--mut)}
@@ -970,13 +971,16 @@ async function carregarAlerta() {
 }
 const hm = t => t ? new Date(t).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'}) : '';
 function alertaGestao(fil) {
-  const A = P.alerta; if (!A || !A.ultima) return '';
+  const A = P.alerta; if (!A) return '';
+  const bs = (A.base || []).filter(x => !fil || x.filial === fil);
+  const baseTxt = bs.length ? `<div class="galert gbase">🚚 <b>Carregados hoje após a abertura (marcado pela base)</b><ul>${bs.map(x => `<li>${esc(x.nome_filial)} · ${esc(x.terminal)} · <b>${GR[x.grupo] || esc(x.grupo)} ${nf(x.litros)} L</b> <span class="mut">(${x.pedidos} pedido(s) faturados no dia anterior)</span></li>`).join('')}</ul><small>Não contam na cota nem nas vendas de hoje; só na movimentação da base.</small></div>` : '';
+  if (!A.ultima) return baseTxt;
   const u = A.ultima; const neg = (A.negativos || []).filter(x => !fil || x.filial === fil);
   const quando = `Última atualização do SICOF pela gestão às ${hm(u.em)}${u.sicof ? ` (dados do SICOF de ${hm(u.sicof)})` : ''}: ${u.inseridos} lançado(s), ${u.ajustados} ajustado(s), ${u.cancelados} cancelado(s).`;
-  if (!neg.length) return `<div class="gok">✓ ${quando} Nenhum estoque negativo por causa dela.</div>`;
+  if (!neg.length) return `<div class="gok">✓ ${quando} Nenhum estoque negativo por causa dela.</div>` + baseTxt;
   return `<div class="galert">⚠ <b>Estoque negativo depois da atualização da gestão</b>
     <ul>${neg.map(x => `<li>${esc(x.nome_filial)} · ${x.tipo === 'terminal' ? esc(x.terminal || '') : 'filial'} · <b>${GR[x.grupo] || esc(x.grupo)} ${nf(x.saldo)} L</b> <span class="mut">(gestão lançou ${nf(x.gestao)} L do SICOF)</span></li>`).join('')}</ul>
-    <small>${quando}</small></div>`;
+    <small>${quando}</small></div>` + baseTxt;
 }
 function desenharPed() {
   const R = relogio(); const gs = gruposFil(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
@@ -1008,7 +1012,7 @@ function desenharPed() {
   const form = podeForm ? formPed(R, ts) : '';
 
   const ord = {A:0, R:1, C:2, V:3, E:4, N:5, X:6};
-  const peds = [...P.peds].sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
+  const peds = [...P.peds].filter(p => ehOp() || !p.virado_base).sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
   const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
   const acoes = p => { const s = statusEf(p, R); const b = [];
     const dono = podeLancar() && (ehOp() || (S.carteiras.includes(p.carteira) && p.origem !== 'gestao')) && !R.passado;
@@ -1016,13 +1020,13 @@ function desenharPed() {
     if ((dono && ['C','R','A','E'].includes(s)) || (ehOp() && ['C','R','A','E','V'].includes(s) && !p.virado)) b.push(`<button class="btn sm sec" data-a="edit" data-id="${p.id}">Editar</button>`);
     if ((s === 'R' || s === 'E') && dono) b.push(`<button class="btn sm" data-a="conf" data-id="${p.id}">Confirmar</button>`);
     if (['C','R','A','E'].includes(s) && dono) b.push(`<button class="btn sm sec" data-a="canc" data-id="${p.id}">Cancelar</button>`);
-    if (s === 'C' && ehOp() && R.passado && !p.virado) b.push(`<button class="btn sm" data-a="virar" data-id="${p.id}">Virar p/ hoje</button>`);
+    if (s === 'C' && ehOp() && R.passado && !p.virado && !p.carregado_em) b.push(`<button class="btn sm" data-a="virar" data-id="${p.id}">Virar p/ hoje</button>`);
     if (p.virado) b.push('<small class="mut">virou para outro dia</small>');
     return b.join(' '); };
   const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
     ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
       return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
-      <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
+      <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${ehOp() && p.virado_base ? ' <span class="tag out">Base: carregado após a abertura</span>' : ''}${ehOp() && p.carregado_em ? ` <span class="tag out">Base: carregou em ${dt(p.carregado_em)}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
         ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
       <td>${esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
       <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${p.origem === 'gestao' ? ' · Gestão' : P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
@@ -1457,7 +1461,14 @@ function ligarHdrFat() {
 }
 async function carregarFat() {
   try {
-    F.peds = await api(`pedidos?data=eq.${F.data}&filial=eq.${F.fil}&status=in.(C,V,R,A)&virado=eq.false&select=id,terminal_id,carteira,cliente_nome,status,gas,gas_ad,eta,s10,s10_ad,s500,s500_ad,observacao,criado_em,origem,pedido_sicof&order=criado_em`);
+    const cols = 'id,data,terminal_id,carteira,cliente_nome,status,gas,gas_ad,eta,s10,s10_ad,s500,s500_ad,observacao,criado_em,origem,pedido_sicof,virado_base,carregado_em,origem_id';
+    F.peds = await api(`pedidos?data=eq.${F.data}&filial=eq.${F.fil}&status=in.(C,V,R,A)&virado=eq.false&select=${cols}&order=criado_em`);
+    F.ant = []; F.antData = null;
+    if (F.data === iso(hojeSP())) {
+      const d0 = new Date(F.data + 'T12:00:00'); d0.setDate(d0.getDate() - 4);
+      const ant = await api(`pedidos?data=lt.${F.data}&data=gte.${iso(d0)}&filial=eq.${F.fil}&status=in.(C,V)&virado=eq.false&select=${cols}&order=data.desc,criado_em`);
+      F.antData = ant.length ? ant[0].data : null; F.ant = ant.filter(p => p.data === F.antData);
+    }
     F.em = new Date();
   } catch(e) { $('main.ped').innerHTML = `<div class="empty">Não foi possível carregar os pedidos: ${esc(errTxt(e))}</div>`; return; }
   desenharFat();
@@ -1474,6 +1485,7 @@ function desenharFat() {
   const tot = p => PRODS.reduce((a, [k]) => a + (+p[k] || 0), 0);
   const prox = (() => { const d = new Date(hoje + 'T12:00:00'); d.setDate(d.getDate() + (d.getDay() === 6 ? 2 : 1)); return iso(d); })();
   const STF = {C:['Confirmado','ok'], V:['Virado de ontem','vir'], R:['Reserva (até 10:30)','rsv'], A:['Aguardando autorização','aut']};
+  const podeBase = F.data === hoje && agoraMin < 720;
   const linhaT = t => { const L = peds.filter(p => p.terminal_id === t.id); if (!L.length) return '';
     const ok = L.filter(p => p.status !== 'A'), aut = L.filter(p => p.status === 'A');
     return `<tr><td><b>${esc(t.nome)}</b>${aut.length ? `<small>+ ${nf(aut.reduce((a,p) => a + tot(p), 0))} L aguardando autorização</small>` : ''}</td>${cols.map(([k]) => `<td class="r">${soma(ok,k) ? `<b>${nf(soma(ok,k))}</b>` : '<span class="mut">—</span>'}</td>`).join('')}<td class="r"><b>${nf(ok.reduce((a,p) => a + tot(p), 0))}</b></td><td class="r">${ok.length}</td></tr>`; };
@@ -1487,18 +1499,33 @@ function desenharFat() {
     return `<h3 class="fat-t">${esc(t.nome)} <small>${L.length} pedido(s)</small></h3><div class="scroll"><table class="ptab plist"><thead><tr><th>Hora</th><th>Cliente</th><th>Carteira</th><th>Volumes (L)</th><th>Situação</th></tr></thead><tbody>
       ${L.map(p => `<tr class="st-${p.status}"><td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}</small></td>
         <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst">SICOF${p.pedido_sicof ? ' ' + esc(p.pedido_sicof) : ''}</span>` : ''}</td>
-        <td>${esc(p.carteira)}</td><td>${prodTxt(p)}</td><td><span class="stp ${STF[p.status][1]}">${STF[p.status][0]}</span></td></tr>`).join('')}</tbody></table></div>`; }).join('');
+        <td>${esc(p.carteira)}</td><td>${prodTxt(p)}</td><td>${p.virado_base ? `<span class="stp vir">Carregado após a abertura</span>${podeBase ? ` <button class="btn sm sec" data-desf="${p.origem_id}">Desfazer</button>` : ''}` : `<span class="stp ${STF[p.status][1]}">${STF[p.status][0]}</span>`}</td></tr>`).join('')}</tbody></table></div>`; }).join('');
+  const listaAnt = F.antData ? ts.map(t => { const L = F.ant.filter(p => p.terminal_id === t.id); if (!L.length) return '';
+    return `<h3 class="fat-t">${esc(t.nome)} <small>${L.length} pedido(s)</small></h3><div class="scroll"><table class="ptab plist"><thead><tr><th>Cliente</th><th>Carteira</th><th>Volumes (L)</th><th></th></tr></thead><tbody>
+      ${L.map(p => `<tr><td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst">SICOF${p.pedido_sicof ? ' ' + esc(p.pedido_sicof) : ''}</span>` : ''}</td><td>${esc(p.carteira)}</td><td>${prodTxt(p)}</td>
+        <td class="acts">${p.carregado_em ? `<span class="stp vir">✓ Carregado hoje</span>${podeBase ? ` <button class="btn sm sec" data-desf="${p.id}">Desfazer</button>` : ''}` : podeBase ? `<button class="btn sm" data-carr="${p.id}">Carregou hoje, após a abertura</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`; }).join('') : '';
   const chips = F.fils.length > 1 ? `<div class="chips" id="chFat">${F.fils.map(f => `<button data-f="${f.codigo}" class="${f.codigo === F.fil ? 'on' : ''}">${esc(f.nome)}</button>`).join('')}</div>` : '';
   $('#app').innerHTML = hdrFat() + `<main class="eq ped">
     <section class="blk"><div class="bh"><div><h3>${esc(fil.nome || '')} · ${dt(F.data)}</h3>
       <p class="sub">Pedidos lançados no CRM para sair desta base, por terminal e produto (litros). Conta confirmados, virados de ontem e reservas ainda válidas; os que aguardam autorização aparecem à parte. Atualizado às ${F.em ? F.em.toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'}) : ''}, atualiza sozinho a cada minuto.</p></div>
       <div class="bh-r">${chips}<div class="seg" id="segDia"><button data-d="${hoje}" class="${F.data === hoje ? 'on' : ''}">Hoje</button><button data-d="${prox}" class="${F.data === prox ? 'on' : ''}">Próximo dia</button></div><input type="date" id="fData" value="${F.data}" aria-label="Data"></div></div>
       ${matriz}</section>
-    <section class="blk"><div class="bh"><div><h3>Pedidos por terminal</h3></div></div>${lista || '<div class="empty">Nenhum pedido.</div>'}</section></main>`;
+    <section class="blk"><div class="bh"><div><h3>Pedidos por terminal</h3></div></div>${lista || '<div class="empty">Nenhum pedido.</div>'}</section>
+    ${F.antData ? `<section class="blk"><div class="bh"><div><h3>Faturados em ${dt(F.antData)} · carregaram hoje?</h3><p class="sub">Marque os pedidos que só carregaram hoje, depois da abertura. Eles passam a contar na movimentação de hoje como <b>carregados após a abertura</b>. ${podeBase ? 'Você pode marcar e desfazer até 12:00.' : 'Prazo encerrado às 12:00 — para alterar, fale com o Hugo ou o Gabriel.'}</p></div></div>${listaAnt}</section>` : ''}</main>`;
   ligarHdrFat();
   document.querySelectorAll('#chFat button').forEach(b => b.onclick = () => { F.fil = b.dataset.f; carregarFat(); });
   document.querySelectorAll('#segDia button').forEach(b => b.onclick = () => { F.data = b.dataset.d; carregarFat(); });
   $('#fData').onchange = e => { if (e.target.value) { F.data = e.target.value; carregarFat(); } };
+  document.querySelectorAll('[data-carr]').forEach(b => b.onclick = async () => {
+    const p = F.ant.find(x => x.id === +b.dataset.carr);
+    if (!confirm(`Confirmar que ${p ? p.cliente_nome : 'o pedido'} carregou hoje, depois da abertura?`)) return;
+    b.disabled = true;
+    try { await rpc('carregar_apos_abertura', {p_id: +b.dataset.carr}); toast('Marcado como carregado após a abertura'); } catch(e) { toast(errTxt(e)); }
+    carregarFat(); });
+  document.querySelectorAll('[data-desf]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await rpc('desfazer_carregamento', {p_id: +b.dataset.desf}); toast('Desfeito'); } catch(e) { toast(errTxt(e)); }
+    carregarFat(); });
 }
 
 /* ---------- VISÃO GERAL (monitoramento das filiais) ---------- */
