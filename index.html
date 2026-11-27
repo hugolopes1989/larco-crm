@@ -1019,6 +1019,20 @@ function calcMetas(D, P) {
     Object.keys(metaCart).forEach(c => { const ls = nosL.filter(x => x.cart === c); const fix = ls.filter(x => !x.aj).reduce((a,x) => a + x.meta, 0);
       const aj = ls.filter(x => x.aj); const s = aj.reduce((a,x) => a + x.meta, 0); if (s > 0) aj.forEach(x => x.meta *= (metaCart[c] - fix) / s); });
   }
+  // trava de produto: em nenhuma filial × produto a equipe pode passar a meta da filial (reduz as metas, proporcionalmente)
+  const cortes = {};
+  MT_FIL.forEach(f => MT_COL.forEach(p => { const meta = MF[f+'|'+p]||0; const ls = nosL.filter(x => x.fil === f && x.col === p);
+    const s = ls.reduce((a,x) => a + x.meta, 0); if (s > meta + 0.5) { ls.forEach(x => { const novo = x.meta * meta / s; const k2 = x.cart+'|'+f; cortes[k2] = (cortes[k2]||0) + (x.meta - novo); x.meta = novo; }); } }));
+  // o que foi cortado volta para a mesma carteira em outros produtos da mesma filial que ainda têm espaço
+  Object.entries(cortes).forEach(([k2, v]) => { const [c, f] = k2.split('|'); let resta = v;
+    const livre = MT_COL.map(p => { const meta = MF[f+'|'+p]||0; const usado = nosL.filter(x => x.fil === f && x.col === p).reduce((a,x) => a + x.meta, 0); return {p, livre: Math.max(0, meta - usado)}; }).filter(o => o.livre > 0.5);
+    const tl = livre.reduce((a,o) => a + o.livre, 0); if (!tl) return;
+    const dar = Math.min(resta, tl);
+    livre.forEach(o => { const q = dar * o.livre / tl; let x = nosL.find(y => y.cart === c && y.fil === f && y.col === o.p);
+      if (!x) { x = {cart:c, fil:f, col:o.p, S:0, O:0, N:0, Nproj:0, med:0, base:0, meta:0}; nosL.push(x); linhas.push(x); }
+      x.meta += q; });
+    cortes[k2] = v - dar; });
+  const cortesC = {}; Object.entries(cortes).forEach(([k2, v]) => { const c = k2.split('|')[0]; if (v > 0.5) cortesC[c] = (cortesC[c]||0) + v; });
   // o que não fechar (falta ou sobra) fica com a Bahia / COF / gestão
   MT_FIL.forEach(f => MT_COL.forEach(p => { const meta = MF[f+'|'+p]||0; if (!meta) return;
     const nos = nosL.filter(x => x.fil === f && x.col === p).reduce((s,x) => s + x.meta, 0);
@@ -1048,7 +1062,7 @@ function calcMetas(D, P) {
     t.med += c.med; t.base += c.base; t.meta += c.meta; t.fils.push(c); });
   const cartList = Object.values(porCart).sort((a,b) => b.meta - a.meta);
   const T = k => MT_FIL.reduce((s,f) => s + fil[f][k], 0);
-  return {P, fNov, meses:{S:mS,O:mO,N:mN}, linhas, cf, fil, cartList, metaCart, sug, k, g,
+  return {P, fNov, meses:{S:mS,O:mO,N:mN}, linhas, cf, fil, cartList, metaCart, sug, k, g, cortes: cortesC,
     totMeta:T('meta'), totMetaAnt:T('metaAnt'), totBase:T('base'), totNos:T('nos'), totFora:T('fora'), totSoma:T('soma')};
 }
 
@@ -1070,6 +1084,7 @@ async function telaMetas() {
   try {
     MTA.D = await rpc('dados_meta', {p_mes: MTA.mes});
     if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_tot1') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); MTA.P.metas = MTA.P.metas || {}; }
+    if ((MTA.D.metas_mes||[]).length) { MTA.P.metas = {}; MTA.D.metas_mes.forEach(r => MTA.P.metas[r.cart] = +r.meta_m3); MTA.gravadas = true; }
     mtRender();
   } catch(e) { $('#mtBody').innerHTML = `<main class="eq" style="margin-top:20px"><div class="empty">Não consegui carregar os dados: ${esc(e.message||e)}</div></main>`; }
 }
@@ -1087,7 +1102,7 @@ function mtHero(R) {
   return `<div><span>Meta das filiais (REG3)</span><b>${nf(R.totMeta)}<small> m³</small></b><em>${R.totMetaAnt ? `${mtSinal(R.totMeta - R.totMetaAnt)} vs ${N}` : ''}</em></div>
       <div><span>Nossas carteiras</span><b>${nf(R.totNos)}<small> m³</small></b><em>${nf(100*R.totNos/R.totMeta,0)}% da meta</em></div>
       <div><span>Bahia / COF (o resto)</span><b>${nf(R.totFora)}<small> m³</small></b><em>${nf(100*R.totFora/R.totMeta,0)}% da meta · hoje vendem ${nf(MT_FIL.reduce((s,f) => s + R.fil[f].baseFora, 0))}</em></div>
-      <div class="${R.totSoma > R.totMeta + 1 ? 'warn' : ''}"><span>Total</span><b>${nf(R.totSoma)}<small> m³</small></b><em>${R.totSoma > R.totMeta + 1 ? `nossas passam a meta em ${nf(R.totSoma - R.totMeta)} m³ em alguns produtos` : 'fecha 100% da meta'}</em></div>`;
+      <div class="${R.totSoma > R.totMeta + 1 ? 'warn' : ''}"><span>Total</span><b>${nf(R.totSoma)}<small> m³</small></b><em>${R.totSoma > R.totMeta + 1 ? `passa a meta em ${nf(R.totSoma - R.totMeta)} m³` : 'fecha 100% da meta, sem passar o produto de nenhuma filial'}</em></div>`;
 }
 function mtRender() {
   const D = MTA.D, P = MTA.P;
@@ -1101,12 +1116,13 @@ function mtRender() {
   <main class="eq">
    <section class="blk"><div class="bh"><div><h3>Nossas carteiras</h3><p class="sub">Digite a meta total. A coluna "Vai retirar em" mostra como o total foi distribuído (em cada filial, entre 60% e 180% do que a carteira tiraria lá pela mistura normal).</p></div>
      <div class="bh-r"><button class="btn sec" id="mtUsarSug">Voltar para a proposta (+${nf(100*(R.k-1),0)}% para todas)</button></div></div>
-     <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th class="r">Meta ${N}</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Proposta</th><th class="r">Meta ${M}</th><th class="r">vs meta ${N}</th><th class="r">vs base</th><th>Vai retirar em</th></tr>
+     <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th class="r">Meta ${N}</th><th class="r">Média 3 meses</th><th class="r">Base</th><th class="r">Proposta</th><th class="r">Meta ${M}</th><th class="r" title="Depois da trava de produto">Meta final</th><th class="r">vs meta ${N}</th><th class="r">vs base</th><th>Vai retirar em</th></tr>
      ${nos.map(c => `<tr><td><b>${c.cart === 'SNP 01' ? 'SNP 01 <small>(MA 03)</small>' : esc(c.cart)}</b><br><span class="sub">${esc(c.nome)}</span></td>
        <td class="r">${c.metaAnt ? nf(c.metaAnt) : '–'}</td><td class="r">${nf(c.med)}</td><td class="r">${nf(c.base)}</td><td class="r sub">${nf(R.sug[c.cart])}</td>
        <td class="r"><input class="mtm3" type="number" step="10" min="0" value="${Math.round(R.metaCart[c.cart])}" data-mc="${esc(c.cart)}"></td>
-       <td class="r" data-vn="${esc(c.cart)}">${mtPctTxt(c.metaAnt ? mtPct(R.metaCart[c.cart], c.metaAnt) : null)}</td><td class="r" data-vb="${esc(c.cart)}">${mtPctTxt(mtPct(R.metaCart[c.cart], c.base))}</td><td class="sub" data-fl="${esc(c.cart)}">${mtFils(c)}</td></tr>`).join('')}
-     <tr class="mtsubt"><td><b>Total equipe</b></td><td class="r"><b>${nf(nos.reduce((s,c) => s + c.metaAnt, 0))}</b></td><td class="r">${nf(nos.reduce((s,c) => s + c.med, 0))}</td><td class="r">${nf(nos.reduce((s,c) => s + c.base, 0))}</td><td class="r sub">${nf(nos.reduce((s,c) => s + R.sug[c.cart], 0))}</td><td class="r"><b class="mtm" id="mtTotNos">${nf(R.totNos)}</b></td><td class="r" id="mtTotVn">${mtPctTxt(mtPct(R.totNos, nos.reduce((s,c) => s + c.metaAnt, 0)))}</td><td></td><td></td></tr></table></div></section>
+       <td class="r" data-mf="${esc(c.cart)}">${mtFinal(c, R)}</td>
+       <td class="r" data-vn="${esc(c.cart)}">${mtPctTxt(c.metaAnt ? mtPct(c.meta, c.metaAnt) : null)}</td><td class="r" data-vb="${esc(c.cart)}">${mtPctTxt(mtPct(c.meta, c.base))}</td><td class="sub" data-fl="${esc(c.cart)}">${mtFils(c)}</td></tr>`).join('')}
+     <tr class="mtsubt"><td><b>Total equipe</b></td><td class="r"><b>${nf(nos.reduce((s,c) => s + c.metaAnt, 0))}</b></td><td class="r">${nf(nos.reduce((s,c) => s + c.med, 0))}</td><td class="r">${nf(nos.reduce((s,c) => s + c.base, 0))}</td><td class="r sub">${nf(nos.reduce((s,c) => s + R.sug[c.cart], 0))}</td><td class="r">${nf(Object.values(R.metaCart).reduce((s,v) => s + v, 0))}</td><td class="r"><b class="mtm" id="mtTotNos">${nf(R.totNos)}</b></td><td class="r" id="mtTotVn">${mtPctTxt(mtPct(R.totNos, nos.reduce((s,c) => s + c.metaAnt, 0)))}</td><td></td><td></td></tr></table></div></section>
    <section class="blk"><div class="bh"><div><h3>Filiais</h3><p class="sub">Meta da filial = nossas carteiras + Bahia / COF. A Bahia / COF cresce como a REG3, até 12% do produto (quem já vende mais fica com o que vende), e fica com o que sobrar.</p></div></div>
      <div class="scroll" id="mtFil">${mtTabFiliais(R)}</div></section>
    <div id="mtOut">${mtSecOutras(R)}</div>
@@ -1119,14 +1135,15 @@ function mtRender() {
   if ($('#mtGravar')) $('#mtGravar').onclick = mtGravar;
   if ($('#mtCsv')) $('#mtCsv').onclick = mtCsvOutras;
 }
+function mtFinal(c, R) { const cut = (R.cortes||{})[c.cart] || 0; return cut > 0.5 ? `<b class="mtm">${nf(c.meta)}</b><br><span class="tag warn" title="Reduzida porque a filial não tem produto para tudo">−${nf(cut)} falta de produto</span>` : `<b class="mtm">${nf(c.meta)}</b>`; }
 function mtFils(c) { return c.fils.filter(x => x.meta >= 0.5).sort((a,b) => b.meta - a.meta).map(x => `${MT_NOMEF[x.fil]} ${nf(x.meta)}`).join(' · '); }
 function mtAtualiza() {
   const R = MTA.R = calcMetas(MTA.D, MTA.P);
   $('#mtHero').innerHTML = mtHero(R); $('#mtFil').innerHTML = mtTabFiliais(R); $('#mtOut').innerHTML = mtSecOutras(R);
   if ($('#mtCsv')) $('#mtCsv').onclick = mtCsvOutras;
   R.cartList.filter(c => !c.outra).forEach(c => { const sel = s => $('#mtBody').querySelector(`[${s}="${CSS.escape(c.cart)}"]`);
-    if (sel('data-vn')) sel('data-vn').innerHTML = mtPctTxt(c.metaAnt ? mtPct(R.metaCart[c.cart], c.metaAnt) : null);
-    if (sel('data-vb')) sel('data-vb').innerHTML = mtPctTxt(mtPct(R.metaCart[c.cart], c.base)); if (sel('data-fl')) sel('data-fl').innerHTML = mtFils(c); });
+    if (sel('data-vn')) sel('data-vn').innerHTML = mtPctTxt(c.metaAnt ? mtPct(c.meta, c.metaAnt) : null);
+    if (sel('data-vb')) sel('data-vb').innerHTML = mtPctTxt(mtPct(c.meta, c.base)); if (sel('data-fl')) sel('data-fl').innerHTML = mtFils(c); if (sel('data-mf')) sel('data-mf').innerHTML = mtFinal(c, R); });
   const nos = R.cartList.filter(c => !c.outra); $('#mtTotNos').textContent = nf(R.totNos); $('#mtTotVn').innerHTML = mtPctTxt(mtPct(R.totNos, nos.reduce((s,c) => s + c.metaAnt, 0)));
 }
 function mtTabFiliais(R) {
