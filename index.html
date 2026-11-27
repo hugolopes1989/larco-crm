@@ -368,6 +368,10 @@ var.mtv{font-style:normal;display:inline}
 .vnv{flex-direction:row!important;align-items:center;gap:4px!important;font-size:12px}.vfoto{border:1px dashed #c8cfe3;border-radius:12px;padding:10px;margin-top:10px!important;background:#fafbff}.vfoto span{font-weight:700;color:var(--g);font-size:14px}.vfoto em{font-style:normal;font-size:12.5px}.vfoto em.ok{color:var(--ok)}
 .vres{border-color:var(--or)!important;background:#fff8f0}.vini p{margin:10px 0}.vhist .vth{display:flex;gap:6px;margin-top:4px}.vhist .vth a{text-decoration:none;font-size:18px}
 @media(max-width:800px){.rt-ed{grid-template-columns:1fr}.rt-map{height:300px;position:static}.rt-form{grid-template-columns:1fr 1fr}.vg4{grid-template-columns:1fr 1fr}.vg2{grid-template-columns:1fr}.vmodal{padding:0}.vbox{border-radius:0;max-height:100vh;height:100vh}}
+.pv-k>div.al b{color:var(--coral)}.pv-map{height:430px;border-radius:14px;overflow:hidden;background:#eef3f1}.pv-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:0}
+.pv-eq tr.zero td{opacity:.65}.pv-eq tr.sel td{background:#fff4e6}.pv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
+.pv-v{display:grid;grid-template-columns:auto 1fr;gap:10px;border:1px solid var(--line);border-radius:14px;padding:10px;background:#fafbff}.pv-fotos{display:flex;gap:6px}.pv-fotos img{width:84px;height:84px;object-fit:cover;border-radius:10px;cursor:zoom-in;background:#e3e7f3}
+.pv-l{margin:4px 0}@media(max-width:700px){.pv-lista{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -464,7 +468,7 @@ function resumoAtual() { return S.resumo.find(r => r.carteira_codigo === S.cart)
 function render() {
   const sup = S.gestao;
   const opts = (sup ? ['<option value="">Equipe (todas)</option>'] : []).concat(S.carteiras.map(c => { const r = S.resumo.find(x => x.carteira_codigo === c) || {}; return `<option value="${esc(c)}" ${c===S.cart?'selected':''}>${esc(c)}${r.consultor_nome ? ' · ' + esc(r.consultor_nome) : ''}${S.cobre && S.cobre[c] ? ` · cobrindo (${MOTIVO_COB[S.cobre[c].motivo] || ''} até ${dt(S.cobre[c].fim)})` : ''}</option>`; })).join('');
-  const hdr = `<header><button type="button" class="brand home" id="bHome" title="Ir para a página inicial"><img class="lgimg" src="${LOGO_W}" alt="Larco"><span class="crm">CRM</span></button><select id="selCart" aria-label="Carteira">${opts}</select><span class="sp"></span>${S.pedLib || verTodas() ? '<button class="btn sec" id="bPed">📦 Pedidos do dia</button>' : ''}${S.podeMeta ? '<button class="btn sec" id="bSimMetas">🎯 Metas</button>' : ''}<span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
+  const hdr = `<header><button type="button" class="brand home" id="bHome" title="Ir para a página inicial"><img class="lgimg" src="${LOGO_W}" alt="Larco"><span class="crm">CRM</span></button><select id="selCart" aria-label="Carteira">${opts}</select><span class="sp"></span>${S.pedLib || verTodas() ? '<button class="btn sec" id="bPed">📦 Pedidos do dia</button>' : ''}${S.gestao ? '<button class="btn sec" id="bVisitas">🚗 Visitas</button>' : ''}${S.podeMeta ? '<button class="btn sec" id="bSimMetas">🎯 Metas</button>' : ''}<span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header>`;
   if (!S.cart) { $('#app').innerHTML = hdr + telaEquipe(); ligarHeader(); ligarEquipe(); return; }
   const r = resumoAtual(); const rows = S.rows;
   const fixa = r.aceita_prospect === false;
@@ -503,6 +507,7 @@ function ligarHeader() {
   if ($('#bHome')) $('#bHome').onclick = irHome;
   if ($('#bPed')) $('#bPed').onclick = () => telaPedidos();
   if ($('#bSimMetas')) $('#bSimMetas').onclick = () => telaMetas();
+  if ($('#bVisitas')) $('#bVisitas').onclick = () => telaVisitas();
   $('#selCart').onchange = async e => { S.cart = e.target.value || null; S.sel = null; S.tab = S.cart ? 'hoje' : 'equipe'; await abrir(); };
 }
 
@@ -1498,6 +1503,90 @@ async function secaoVisitas(id) {
   box.querySelectorAll('[data-foto]').forEach(a => a.onclick = async e => { e.preventDefault();
     try { const r = await fetch(`${SB_URL}/storage/v1/object/sign/visitas/${a.dataset.foto}`, {method:'POST', headers:{apikey:SB_KEY, Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json'}, body:JSON.stringify({expiresIn:600})});
       const j = await r.json(); if (!j.signedURL) throw new Error(); window.open(`${SB_URL}/storage/v1${j.signedURL}`, '_blank'); } catch(x) { toast('Não foi possível abrir a foto.'); } });
+}
+
+/* ---------- ROTAS E VISITAS · SUPERVISÃO ---------- */
+const PV = {per:'7', pessoa:'', D:null, fotos:{}};
+const CORES_P = ['#f7861a','#2f6fd6','#1fa65a','#a046d6','#e2413b','#0f9fb0','#c2185b','#7a5c00','#3949ab','#00897b','#6d4c41','#5e35b1'];
+function periodoPV() { const h = hojeSP(); const f = iso(h); let i;
+  if (PV.per === 'hoje') i = f; else if (PV.per === 'mes') i = iso(new Date(h.getFullYear(), h.getMonth(), 1)); else { const d = new Date(h); d.setDate(d.getDate() - 6); i = iso(d); }
+  return [i, f]; }
+async function telaVisitas() {
+  S.view = 'vis'; clearInterval(P.timer);
+  $('#app').innerHTML = `<header><button type="button" class="brand home" id="bHome" title="Ir para a página inicial"><img class="lgimg" src="${LOGO_W}" alt="Larco"><span class="crm">CRM</span></button><h1>Rotas e visitas</h1><span class="sp"></span>
+    <button class="btn sec" id="bVolta">← Voltar ao CRM</button><span class="who">${esc(S.me.nome)}</span><button class="btn sec" id="bSair">Sair</button></header><main class="eq ped pv" id="pvMain"><div class="empty">Carregando…</div></main>`;
+  $('#bSair').onclick = () => { S.view = null; sair(); };
+  $('#bVolta').onclick = () => { S.view = null; render(); };
+  $('#bHome').onclick = () => { S.view = null; irHome(); };
+  await carregarPV();
+}
+async function carregarPV() {
+  const [i, f] = periodoPV();
+  try { PV.D = await rpc('painel_visitas', {p_ini:i, p_fim:f}); } catch(e) { $('#pvMain').innerHTML = `<div class="empty">Não foi possível carregar. ${esc(errTxt(e))}</div>`; return; }
+  desenharPV();
+}
+function desenharPV() {
+  const D = PV.D; const box = $('#pvMain'); if (!box) return;
+  const todas = [...(D.pessoas || []), ...(D.outros || []).map(o => ({...o, carteiras:'', visitas:null}))];
+  const cor = {}; todas.forEach((p, i) => cor[p.id] = CORES_P[i % CORES_P.length]);
+  const V = (D.visitas || []).filter(v => !PV.pessoa || v.usuario_id === PV.pessoa);
+  const nm = id => (todas.find(p => p.id === id) || {}).nome || '';
+  const quando = t => new Date(t).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  const k = (n, l, c = '') => `<div class="${c}"><b>${n}</b><span>${l}</span></div>`;
+  const semVis = (D.pessoas || []).filter(p => !p.visitas && p.perfil === 'externo');
+  const pr = v => ['gas','eta','s10','s500'].filter(x => v[x]).map(x => `${({gas:'Gas', eta:'Eta', s10:'S10', s500:'S500'})[x]} ${nf(v[x], 2)}`).join(' · ');
+  const RV = {vendeu:'Vendeu', cotou:'Cotou', sem_demanda:'Sem demanda', perdeu:'Perdeu'};
+  const per = {hoje:'Hoje', '7':'Últimos 7 dias', mes:'Este mês'};
+  const rotas = (D.rotas || []).filter(r => !PV.pessoa || (todas.find(p => p.id === PV.pessoa) || {}).nome === r.pessoa);
+  box.innerHTML = `<section class="blk"><div class="bh"><div><h3>🚗 Rotas e visitas</h3><p class="sub">${dt(D.ini)}${D.ini !== D.fim ? ' a ' + dt(D.fim) : ''}${PV.pessoa ? ' · ' + esc(nm(PV.pessoa)) + ' <button class="lnk" id="pvTodos">ver todos</button>' : ''}</p></div>
+      <div class="seg" id="pvPer">${Object.entries(per).map(([a,b]) => `<button data-p="${a}" class="${PV.per === a ? 'on' : ''}">${b}</button>`).join('')}</div></div>
+    <div class="rt-res pv-k">${k(V.length, 'visitas')}${k(new Set(V.map(v => v.cliente_id)).size, 'postos visitados')}${k(V.filter(v => v.resultado === 'vendeu').length, 'vendas na visita')}${k(V.filter(v => v.resultado === 'cotou').length, 'cotações')}
+      ${k(V.filter(v => v.gas || v.s10 || v.eta || v.s500).length, 'preços de bomba')}${k(V.filter(v => v.dist > 500).length, 'fora do posto (> 500 m)', V.some(v => v.dist > 500) ? 'al' : '')}${k(rotas.length, 'rotas no período')}</div>
+    ${semVis.length && !PV.pessoa ? `<div class="galert">⚠ <b>Externos sem nenhuma visita no período:</b> ${semVis.map(p => esc(p.nome) + ` <span class="mut">(${esc(p.carteiras)})</span>`).join(', ')}</div>` : ''}</section>
+  <section class="blk"><div class="bh"><div><h3>Equipe</h3><p class="sub">Clique na pessoa para ver só as visitas, rotas e fotos dela.</p></div></div><div class="scroll"><table class="mtt pv-eq">
+    <tr><th>Pessoa</th><th>Carteiras</th><th class="r">Visitas</th><th class="r">Postos</th><th class="r">Vendeu</th><th class="r">Cotou</th><th class="r">Fora do posto</th><th class="r">Rotas</th><th>Última visita</th></tr>
+    ${todas.map(p => `<tr class="clk ${p.visitas === 0 ? 'zero' : ''} ${PV.pessoa === p.id ? 'sel' : ''}" data-u="${p.id}"><td><i class="pv-dot" style="background:${cor[p.id]}"></i><b>${esc(p.nome)}</b> <span class="tag ${p.perfil === 'externo' ? 'c' : ''}">${p.perfil === 'externo' ? 'Externo' : p.perfil === 'consultor' ? 'Consultor' : 'Gestão'}</span></td>
+      <td class="sub">${esc(p.carteiras || '')}</td>${p.visitas == null ? `<td class="r">${(D.visitas || []).filter(v => v.usuario_id === p.id).length}</td><td colspan="6"></td>` : `<td class="r"><b>${p.visitas}</b></td><td class="r">${p.postos}</td><td class="r">${p.vendeu}</td><td class="r">${p.cotou}</td><td class="r ${p.longe ? 'neg' : ''}">${p.longe || '–'}</td><td class="r">${p.rotas}</td><td class="sub">${p.ultima ? quando(p.ultima) : '<span class="neg">sem visitas</span>'}</td>`}</tr>`).join('')}
+  </table></div></section>
+  <section class="blk"><div class="bh"><div><h3>Mapa das visitas</h3><p class="sub">Cada cor é uma pessoa. Bolinha com borda vermelha = registrada a mais de 500 m do posto.</p></div></div><div id="pvMap" class="pv-map"></div></section>
+  <section class="blk"><div class="bh"><div><h3>Rotas</h3></div></div>
+    ${rotas.length ? `<div class="rt-cards">${rotas.map(r => { const t = TIPOS_ROTA[r.tipo] || TIPOS_ROTA.propria; return `<div class="rt-card ${r.status}"><span class="rt-tp">${t.i} ${t.n} · ${esc(r.carteira)}</span><b>${esc(r.nome)}</b><span class="sub">${esc(r.pessoa)} · ${dt(r.data_ini)}${r.dias > 1 ? ` (${r.dias} dias)` : ''}</span>
+      <div class="track"><i style="width:${r.n ? 100 * r.vis / r.n : 0}%"></i></div><span class="sub">${r.vis} de ${r.n} visitados · ${r.vendas} venda${r.vendas === 1 ? '' : 's'}${r.status === 'concluida' ? ' · concluída' : ''}</span></div>`; }).join('')}</div>` : '<div class="empty">Nenhuma rota no período.</div>'}</section>
+  <section class="blk"><div class="bh"><div><h3>Oportunidades quentes</h3><p class="sub">Postos visitados com tanque baixo, interesse, compra prevista para esta semana ou concorrente oferecendo condição, que ainda não viraram pedido.</p></div></div>
+    ${(D.oportunidades || []).length ? `<div class="scroll"><table class="mtt"><tr><th>Posto</th><th>Carteira</th><th>Quem visitou</th><th>Sinal</th><th>Oferta do concorrente</th></tr>
+      ${D.oportunidades.map(o => `<tr><td><b>${esc(o.cliente)}</b><br><span class="sub">${esc(o.municipio || '')}</span></td><td>${esc(o.carteira)}</td><td class="sub">${esc(o.pessoa)}<br>${quando(o.inicio)}</td>
+        <td>${[o.tanque === 'baixo' ? '<span class="tag p">tanque baixo</span>' : '', o.interesse === 'sim' ? '<span class="tag d">quer comprar</span>' : '', o.proxima === 'hoje' ? '<span class="tag p">compra hoje</span>' : o.proxima === 'semana' ? '<span class="tag">compra esta semana</span>' : ''].join(' ')}</td><td class="sub">${esc(o.oferta || '')}</td></tr>`).join('')}</table></div>` : '<div class="empty">Nenhuma oportunidade em aberto.</div>'}</section>
+  <section class="blk"><div class="bh"><div><h3>Preço de bomba por cidade</h3><p class="sub">Média dos preços coletados nas visitas (R$/L) e quanto eles pagam ao fornecedor.</p></div></div>
+    ${(D.precos || []).length ? `<div class="scroll"><table class="mtt"><tr><th>Cidade</th><th class="r">Visitas</th><th class="r">Gasolina</th><th class="r">Etanol</th><th class="r">S10</th><th class="r">S500</th><th class="r">Paga ao fornecedor</th><th>Fornecedores</th></tr>
+      ${D.precos.map(c => `<tr><td><b>${esc(c.municipio || '')}</b>${c.uf ? '/' + esc(c.uf) : ''}</td><td class="r">${c.n}</td>${['gas','eta','s10','s500','pago'].map(x => `<td class="r">${c[x] ? nf(c[x], 2) : '–'}</td>`).join('')}<td class="sub">${esc(c.fornecedores || '')}</td></tr>`).join('')}</table></div>` : '<div class="empty">Nenhum preço coletado no período.</div>'}</section>
+  <section class="blk"><div class="bh"><div><h3>Visitas</h3><p class="sub">Mais recentes primeiro. Toque nas fotos para ampliar.</p></div></div>
+    ${V.length ? `<div class="pv-lista">${V.slice(0, 80).map(v => `<div class="pv-v"><div class="pv-fotos">${(v.fotos || []).slice(0, 2).map(p => `<img data-foto="${esc(p)}" alt="Foto da visita">`).join('')}</div>
+      <div><b>${esc(v.cliente)}</b> <span class="sub">${esc(v.municipio || '')} · ${esc(v.carteira)}</span><br><span class="sub"><i class="pv-dot" style="background:${cor[v.usuario_id] || '#999'}"></i>${esc(v.pessoa)} · ${quando(v.inicio)}</span>
+      <div class="pv-l"><span class="tag ${v.resultado === 'vendeu' ? 'd' : v.resultado === 'perdeu' ? 'p' : ''}">${RV[v.resultado] || esc(v.resultado)}</span>${v.tanque ? ` <span class="tag ${v.tanque === 'baixo' ? 'p' : ''}">tanque ${esc(v.tanque)}</span>` : ''}${v.dist > 500 ? ` <span class="tag p">⚠ a ${nf(v.dist / 1000, 1)} km do posto</span>` : ''}</div>
+      <div class="sub">${pr(v)}${v.fornecedor ? ` · compra da ${esc(v.fornecedor)}${v.pago ? ' a ' + nf(v.pago, 2) : ''}` : ''}</div>${v.obs ? `<div class="sub">${esc(v.obs)}</div>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">Nenhuma visita no período.</div>'}</section>`;
+  box.querySelectorAll('#pvPer button').forEach(b => b.onclick = async () => { PV.per = b.dataset.p; box.innerHTML = '<div class="empty">Carregando…</div>'; await carregarPV(); });
+  box.querySelectorAll('tr[data-u]').forEach(tr => tr.onclick = () => { PV.pessoa = PV.pessoa === tr.dataset.u ? '' : tr.dataset.u; desenharPV(); window.scrollTo(0, 0); });
+  if ($('#pvTodos')) $('#pvTodos').onclick = () => { PV.pessoa = ''; desenharPV(); };
+  mapaPV(V, cor);
+  fotosPV(box);
+}
+function mapaPV(V, cor) {
+  const el = document.getElementById('pvMap'); if (!el) return;
+  if (typeof L === 'undefined') { el.innerHTML = '<div class="empty">Mapa indisponível (sem conexão com o servidor de mapas).</div>'; return; }
+  const m = L.map(el); L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Tiles © Esri'}).addTo(m);
+  const pts = [];
+  V.forEach(v => { if (!v.lat || !v.lon) return; const p = [+v.lat, +v.lon]; pts.push(p);
+    L.circleMarker(p, {radius:8, color:v.dist > 500 ? '#e2413b' : '#fff', weight:v.dist > 500 ? 3 : 1.5, fillColor:cor[v.usuario_id] || '#999', fillOpacity:.9}).addTo(m)
+      .bindPopup(`<b>${esc(v.cliente)}</b><br>${esc(v.pessoa)} · ${new Date(v.inicio).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}<br>${({vendeu:'Vendeu', cotou:'Cotou', sem_demanda:'Sem demanda', perdeu:'Perdeu'})[v.resultado] || ''}${v.dist > 500 ? `<br><b style="color:#c62828">a ${nf(v.dist / 1000, 1)} km do posto</b>` : ''}`); });
+  if (pts.length) m.fitBounds(pts, {padding:[30,30], maxZoom:13}); else m.setView([-7.5, -39], 6);
+}
+async function fotosPV(box) {
+  const imgs = [...box.querySelectorAll('img[data-foto]')]; if (!imgs.length) return;
+  const falta = [...new Set(imgs.map(i => i.dataset.foto).filter(p => !PV.fotos[p]))];
+  if (falta.length) { try {
+    const r = await fetch(`${SB_URL}/storage/v1/object/sign/visitas`, {method:'POST', headers:{apikey:SB_KEY, Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json'}, body:JSON.stringify({expiresIn:3600, paths:falta})});
+    (await r.json()).forEach(x => { if (x.signedURL) PV.fotos[x.path] = `${SB_URL}/storage/v1${x.signedURL}`; }); } catch(e) {} }
+  imgs.forEach(i => { const u = PV.fotos[i.dataset.foto]; if (u) { i.src = u; i.onclick = () => window.open(u, '_blank'); } else i.remove(); });
 }
 
 /* ---------- RETA FINAL DO MÊS ---------- */
