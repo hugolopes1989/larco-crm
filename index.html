@@ -856,7 +856,7 @@ function telaEquipe() {
   <main class="eq">
    <section class="blk"><div class="bh"><div><h3>Carteiras</h3><p class="sub">Clique em uma carteira para abrir a visão do consultor</p></div>
      <div class="bh-r"><div class="chips" id="fReg"><button data-r="" class="${!S.fReg?'on':''}">Todas</button>${regs.map(g=>`<button data-r="${g}" class="${S.fReg===g?'on':''}">${g}</button>`).join('')}</div>
-     ${S.podeMeta?'<button class="btn sm" id="bMetas">Definir metas do mês</button>':''}
+     ${S.podeMeta?'<button class="btn sm" id="bMetas">Definir metas do mês</button>':''}${ehOp()?'<button class="btn sm sec" id="bSenha">🔑 Senha provisória</button>':''}
      <select id="ordC" aria-label="Ordenar carteiras">${[['proj','Maior projeção'],['pend','Mais pendências'],['posit','Menor positivação'],['nome','Código']].map(([k,l])=>`<option value="${k}" ${S.ordC===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
      <div id="carts" class="cgrid"></div></section>
    <section class="blk"><div class="bh"><div><h3>Atividade da equipe</h3><p class="sub">O que cada consultor e externo registrou no CRM</p></div>
@@ -953,6 +953,22 @@ async function carregarDias() {
       <div class="legend"><span><i class="sq v"></i>Vendeu</span><span><i class="sq q"></i>Cotou</span><span><i class="sq l"></i>Perdeu</span><span><i class="sq o"></i>Sem demanda / não atendeu</span><span><i class="sq f"></i>m³ faturados no dia (Qlik)</span></div>`;
   } catch(e) { $('#atvDia').textContent = 'Não foi possível carregar.'; }
 }
+async function abrirSenha() {
+  let U = []; try { U = await api('usuarios?ativo=eq.true&select=nome,email,perfil&order=nome'); } catch(e) { return toast('Não foi possível carregar os usuários.'); }
+  const PF = {consultor:'Consultor', externo:'Externo', supervisor:'Supervisor', gerente:'Gerente', gerente_corp:'Gerente corporativo', faturamento:'Faturamento'};
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<form class="mbox" id="fSenha" style="width:min(520px,100%)"><h3>🔑 Senha provisória</h3>
+    <p class="sub">Defina uma senha provisória para a pessoa entrar. No primeiro acesso o CRM pede para ela criar a própria senha. Passe a senha só para a própria pessoa.</p>
+    <div class="pform"><label class="full">Usuário<select id="sUsr">${U.map(u => `<option value="${esc(u.email)}">${esc(u.nome)} · ${esc(PF[u.perfil] || u.perfil)} · ${esc(u.email)}</option>`).join('')}</select></label>
+    <label class="full">Senha provisória (mínimo 8 caracteres)<input id="sPw" type="text" minlength="8" autocomplete="off" required></label></div>
+    <div class="mact"><button type="button" class="btn sec" id="sCanc">Cancelar</button><button class="btn">Definir senha</button></div></form>`;
+  document.body.appendChild(d);
+  $('#sCanc').onclick = () => d.remove();
+  $('#fSenha').onsubmit = async e => { e.preventDefault(); const pw = $('#sPw').value; if (pw.length < 8) return toast('A senha precisa ter pelo menos 8 caracteres.');
+    const b = e.target.querySelector('button.btn:not(.sec)'); b.disabled = true;
+    try { const nome = await rpc('definir_senha_provisoria', {p_email: $('#sUsr').value, p_senha: pw}); d.remove(); toast(`Senha provisória definida para ${nome}. No primeiro acesso ela troca a senha.`); }
+    catch(x) { b.disabled = false; toast(errTxt(x)); } };
+}
 function abrirMetas() {
   const h = hojeSP(); const mes = iso(new Date(h.getFullYear(), h.getMonth(), 1)); const nomeMes = h.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
   const R = [...S.resumo].sort((a,b) => a.carteira_codigo.localeCompare(b.carteira_codigo));
@@ -977,6 +993,7 @@ async function ligarEquipe() {
   document.querySelectorAll('#fReg button').forEach(b => b.onclick = () => { S.fReg = b.dataset.r; document.querySelectorAll('#fReg button').forEach(x => x.classList.toggle('on', x === b)); desenharCarteiras(); });
   $('#ordC').onchange = e => { S.ordC = e.target.value; desenharCarteiras(); };
   if ($('#bMetas')) $('#bMetas').onclick = abrirMetas;
+  if ($('#bSenha')) $('#bSenha').onclick = abrirSenha;
   if (S.perAtv !== 'hoje') { try { S.pessoas = await rpc('atividade_equipe', {p_ini:iso(hojeSP()), p_fim:iso(hojeSP())}); desenharCarteiras(); const c = S.pessoas.reduce((s,r)=>s+(+r.contatos||0),0); $('#hkHoje').textContent = nf(c); $('#hkHojeS').textContent = `${S.pessoas.filter(r=>+r.contatos).length} de ${S.pessoas.length} pessoas registraram`; } catch(e) {} }
   carregarAtividade(); carregarDias();
   try {
