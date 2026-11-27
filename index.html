@@ -1308,7 +1308,7 @@ function desenharEditor() {
         <label>Cidade base<select id="eBase">${cs.map(c => `<option value="${esc(c.k)}" ${c.k === E.base ? 'selected' : ''}>${esc(c.nome)} · ${c.n} postos</option>`).join('')}</select></label>
         <label>Raio a partir da cidade<select id="eRaio">${[30,60,100,150].map(v => `<option ${v === E.raio ? 'selected' : ''} value="${v}">${v} km</option>`).join('')}</select></label>
         <label>Saída<input type="date" id="eData" value="${E.data}"></label>
-        <label>Dias de viagem<select id="eDias">${[1,2,3].map(v => `<option ${v === E.dias ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label>Dias de viagem<select id="eDias">${[1,2,3,4,5].map(v => `<option ${v === E.dias ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Paradas por dia<select id="ePor">${[5,6,8,10].map(v => `<option ${v === E.porDia ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       </div>
       <div class="rt-tipos">${Object.entries(TIPOS_ROTA).map(([k,t]) => `<button type="button" class="rt-tipo ${E.tipo === k ? 'on' : ''}" data-t="${k}"><b>${t.i} ${t.n}</b><span>${t.d}</span></button>`).join('')}</div>
