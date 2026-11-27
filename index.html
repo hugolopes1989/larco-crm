@@ -313,6 +313,14 @@ body.noel .btn:not(.sec){box-shadow:0 0 0 2px rgba(255,204,0,.0),0 3px 10px rgba
 .mtaj{white-space:nowrap}.mtaj input[type=range]{width:130px;accent-color:var(--or);vertical-align:middle}.mtaj input[type=number]{width:58px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;font:600 13px Inter,sans-serif;text-align:right;margin-left:6px}.mtaj em{font-style:normal;margin-left:3px;color:var(--mut)}
 .mtm3{width:84px;border:2px solid var(--g);border-radius:8px;padding:5px 8px;font:800 15px Poppins,sans-serif;color:var(--g);text-align:right}
 var.mtv{font-style:normal;display:inline}
+.rf{margin:14px auto 0;max-width:1240px;background:#fff;border-radius:18px;padding:16px 20px;box-shadow:0 6px 24px rgba(20,30,80,.08);border-left:6px solid var(--or)}.rf.rf-ok{border-left-color:var(--ok)}.rf.rf-at{border-left-color:#e6b400}.rf.rf-cr{border-left-color:var(--coral)}
+.rf-h{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.rf-h h3{margin:2px 0 0;font:800 22px Poppins,sans-serif;color:var(--g)}.rf .eyebrow{color:var(--or);margin:0;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.rf-st,.rf-tag{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:12.5px;background:#fff1dc;color:#a35a00;white-space:nowrap}.rf-ok .rf-st,.rf-tag.rf-ok{background:#e3f6ea;color:#11643a}.rf-at .rf-st,.rf-tag.rf-at{background:#fff6cc;color:#7a5d00}.rf-cr .rf-st,.rf-tag.rf-cr{background:#ffe3e0;color:#a3271a}
+.rf-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 2fr;gap:10px;margin:12px 0}.rf-k>div{background:#f5f7fd;border-radius:12px;padding:8px 12px}.rf-k span{display:block;font-size:12px;color:var(--mut)}.rf-k b{font:800 20px Poppins,sans-serif;color:var(--g)}.rf-k em{font-style:normal;font-size:12px;color:var(--mut);margin-left:6px}
+.rf-bar .track{height:10px;border-radius:6px;background:#e3e7f3;overflow:hidden;margin-top:8px}.rf-bar .track i{display:block;height:100%;background:var(--or)}.rf-ok .rf-bar .track i{background:var(--ok)}.rf-bar span{font-weight:700;color:var(--g)!important;font-size:13px!important}
+.rf-p{margin:4px 0 10px;padding-left:20px;font-size:14px;line-height:1.5}.rf h4{margin:6px 0 8px;font:700 14px Poppins,sans-serif;color:var(--g)}
+.rf-cl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.rf-c{text-align:left;border:1px solid var(--line);background:#fafbff;border-radius:12px;padding:8px 10px;cursor:pointer;font:inherit}.rf-c:hover{border-color:var(--or)}.rf-c b{display:block;font-size:13px;color:var(--ink)}.rf-c span{display:block;font-size:11.5px;color:var(--mut)}.rf-c em{display:block;font-style:normal;font-size:12px;color:var(--ink);margin-top:3px}.rf-c strong{color:#c25700}
+@media(max-width:800px){.rf-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -430,7 +438,8 @@ function render() {
   const nav = `<nav class="tabs">${tabs.map(([k,l,n]) => `<button data-t="${k}" class="${S.tab===k?'on':''}">${l}${n?`<span class="n">${n}</span>`:''}${k==='recup'?` (${nRec})`:''}${k==='prosp'?` (${nPros})`:''}</button>`).join('')}</nav>`;
   const corpo = S.tab === 'mapa' ? `<div class="wrap" style="grid-template-columns:1fr"><div>${legenda()}<div id="map"></div></div></div>` :
     `<div class="wrap"><div>${ferramentas()}<div class="list" id="lista"></div></div><div class="ficha" id="ficha"><div class="empty">Selecione um cliente na lista.</div></div></div>`;
-  $('#app').innerHTML = hdr + heroConsultor(r) + kp + nav + `<main>${corpo}</main>`;
+  $('#app').innerHTML = hdr + heroConsultor(r) + '<div id="rfBox"></div>' + kp + nav + `<main>${corpo}</main>`;
+  carregarRF();
   ligarHeader();
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; S.sel = null; render(); });
   if (S.tab === 'mapa') desenharMapa(); else { ligarFerramentas(); desenharLista(); }
@@ -819,6 +828,7 @@ function telaEquipe() {
       <div class="${tot('pendencias')?'warn':''}"><span>Clientes aguardando contato</span><b>${nf(tot('pendencias'))}</b><em>${nf(tot('recuperacao'))} em recuperação</em></div>
     </div></div></section>
   <main class="eq">
+   <section class="blk" id="rfEq"><div class="empty">Carregando a reta final do mês…</div></section>
    <section class="blk"><div class="bh"><div><h3>Atividade da equipe</h3><p class="sub">O que cada consultor e externo registrou no CRM</p></div>
      <div class="bh-r"><div class="seg" id="perAtv">${[['hoje','Hoje'],['ontem','Ontem'],['7d','7 dias'],['mes','Mês']].map(([k,l])=>`<button data-p="${k}" class="${S.perAtv===k?'on':''}">${l}</button>`).join('')}</div>
      <div class="seg" id="vAtv">${[['cards','Cartões'],['tab','Tabela']].map(([k,l])=>`<button data-v="${k}" class="${S.vAtv===k?'on':''}">${l}</button>`).join('')}</div></div></div>
@@ -935,7 +945,7 @@ function abrirMetas() {
     } catch(er) { toast('Erro ao salvar: ' + er.message); } };
 }
 async function ligarEquipe() {
-  desenharCarteiras();
+  desenharCarteiras(); carregarRFEquipe();
   document.querySelectorAll('#perAtv button').forEach(b => b.onclick = () => { S.perAtv = b.dataset.p; document.querySelectorAll('#perAtv button').forEach(x => x.classList.toggle('on', x === b)); carregarAtividade(); });
   document.querySelectorAll('#vAtv button').forEach(b => b.onclick = () => { S.vAtv = b.dataset.v; document.querySelectorAll('#vAtv button').forEach(x => x.classList.toggle('on', x === b)); carregarAtividade(); });
   document.querySelectorAll('#fReg button').forEach(b => b.onclick = () => { S.fReg = b.dataset.r; document.querySelectorAll('#fReg button').forEach(x => x.classList.toggle('on', x === b)); desenharCarteiras(); });
@@ -1073,6 +1083,55 @@ const MT_NOMEP = {GAS:'Gasolina',ETA:'Etanol',S10:'S10',S500:'S500'};
 const mtMesTxt = d => { const t = new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', {month:'long', year:'numeric'}); return t[0].toUpperCase() + t.slice(1); };
 const mtMesCurto = ym => { const [a,m] = ym.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+m-1] + '/' + a.slice(2); };
 function mtProxMes() { const h = hojeSP(); const d = new Date(h.getFullYear(), h.getMonth() + 1, 1); return iso(d); }
+
+/* ---------- RETA FINAL DO MÊS ---------- */
+function rfStatus(c) {
+  if (c.falta <= 0.5) return {k:'ok', t:'Meta garantida'};
+  const r = c.por_dia / Math.max(1, c.ritmo || 0);
+  return r <= 1 ? {k:'ok', t:'No ritmo'} : r <= 1.3 ? {k:'at', t:'Atenção'} : r <= 2.5 ? {k:'fo', t:'Esforço forte'} : {k:'cr', t:'Muito difícil'};
+}
+const rfDias = d => nf(d, d % 1 ? 1 : 0) + ' dia' + (d > 1 ? 's' : '');
+function rfPlano(c, D) {
+  const st = rfStatus(c); const b = [];
+  if (c.falta <= 0.5) b.push(`Com o que já está lançado para hoje, a meta está batida. Agora é passar da meta: os clientes abaixo costumam comprar mais.`);
+  else {
+    b.push(`Faltam <b>${nf(c.falta)} m³</b> em ${rfDias(D.dias_rest)} de venda: <b>${nf(c.por_dia)} m³ por dia</b> (seu ritmo no mês é ${nf(c.ritmo)} m³/dia).`);
+    if (c.potencial >= c.falta) b.push(`Os ${nf(c.n_atrasados)} clientes que estão comprando abaixo do normal somam <b>${nf(c.potencial)} m³</b>: dá para fechar a meta só com eles. Comece pelos maiores da lista.`);
+    else if (c.potencial > 0) b.push(`Os clientes que estão comprando abaixo do normal somam ${nf(c.potencial)} m³ (${nf(100*c.potencial/c.falta,0)}% do que falta). O resto precisa vir de pedidos maiores dos clientes ativos e de reativação.`);
+    if (D.dias_rest <= 3) b.push(`Peça hoje os pedidos de sábado (meio dia) e de segunda: no último dia não dá tempo de recuperar.`);
+    if (st.k === 'cr' || st.k === 'fo') b.push(`Foque nos 3 maiores clientes atrasados e fale com a supervisão se precisar de condição especial para fechar.`);
+  }
+  return b;
+}
+function rfCaixa(c, D, cons) {
+  const st = rfStatus(c); const fimTxt = new Date(D.fim + 'T12:00:00').toLocaleDateString('pt-BR', {month:'long'});
+  return `<section class="rf rf-${st.k}"><div class="rf-h"><div><p class="eyebrow">Reta final de ${esc(fimTxt)} · faltam ${rfDias(D.dias_rest)} de venda</p><h3>${c.falta <= 0.5 ? 'Meta garantida! 🎉' : `Faltam ${nf(c.falta)} m³ para bater a meta`}</h3></div><span class="rf-st">${st.t}</span></div>
+    <div class="rf-k"><div><span>Meta</span><b>${nf(c.meta)}</b></div><div><span>Vendido${c.vendas_ate ? ' até ' + new Date(c.vendas_ate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : ''}</span><b>${nf(c.vendido)}</b></div>
+      <div><span>Lançado para hoje</span><b>${nf(c.hoje)}</b></div><div><span>Precisa por dia</span><b>${c.falta > 0.5 ? nf(c.por_dia) : '–'}</b><em>ritmo ${nf(c.ritmo)}/dia</em></div>
+      <div class="rf-bar"><span>${nf(c.pct, 0)}% da meta</span><div class="track"><i style="width:${Math.min(100, c.pct)}%"></i></div></div></div>
+    <ul class="rf-p">${rfPlano(c, D).map(x => `<li>${x}</li>`).join('')}</ul>
+    ${(c.clientes||[]).length ? `<h4>Onde atacar · clientes comprando abaixo do normal</h4><div class="rf-cl">${c.clientes.map(x => `<button class="rf-c" ${cons ? `data-id="${x.id}"` : ''} title="Compra em média ${nf(x.media)} m³/mês; em ${esc(fimTxt)} comprou ${nf(x.mes)} m³; última compra ${x.ult ? new Date(x.ult + 'T12:00:00').toLocaleDateString('pt-BR') : '–'}"><b>${esc(x.nome)}</b><span>${esc(x.municipio||'')}${x.uf ? '/' + esc(x.uf) : ''}</span><em>costuma ${nf(x.media)} m³ · comprou ${nf(x.mes)} · <strong>~${nf(x.gap)} m³ a buscar</strong></em></button>`).join('')}</div>` : ''}
+  </section>`;
+}
+async function carregarRF() {
+  const box = $('#rfBox'); if (!box || !S.cart) return;
+  try { const D = await rpc('reta_final', {p_carteira: S.cart}); const c = (D.carteiras||[])[0];
+    if (!c || D.dias_rest > 5) { box.innerHTML = ''; return; }
+    box.innerHTML = rfCaixa(c, D, true);
+    box.querySelectorAll('.rf-c[data-id]').forEach(b => b.onclick = () => abrirFicha(+b.dataset.id));
+  } catch(e) { box.innerHTML = ''; }
+}
+async function carregarRFEquipe() {
+  const box = $('#rfEq'); if (!box) return;
+  try { const D = await rpc('reta_final', {}); const L = D.carteiras || [];
+    if (!L.length || D.dias_rest > 5) { box.remove(); return; }
+    const tot = k => L.reduce((s,c) => s + (+c[k]||0), 0); const fimTxt = new Date(D.fim + 'T12:00:00').toLocaleDateString('pt-BR', {month:'long'});
+    box.innerHTML = `<div class="bh"><div><h3>Reta final de ${esc(fimTxt)} · faltam ${rfDias(D.dias_rest)} de venda</h3><p class="sub">Falta ${nf(tot('falta'))} m³ para todas as carteiras baterem a meta (já contando o lançado para hoje). Clique na carteira para ver o plano e os clientes.</p></div></div>
+      <div class="scroll"><table class="mtt"><tr><th>Carteira</th><th class="r">Meta</th><th class="r">% c/ hoje</th><th class="r">Falta</th><th class="r">Precisa/dia</th><th class="r">Ritmo/dia</th><th>Situação</th><th class="r">Clientes atrasados</th><th>Onde atacar</th></tr>
+      ${L.map(c => { const st = rfStatus(c); return `<tr class="clk" data-c="${esc(c.carteira)}"><td><b>${esc(c.carteira)}</b><br><span class="sub">${esc(c.consultor||'')}</span></td><td class="r">${nf(c.meta)}</td><td class="r"><b>${nf(c.pct,0)}%</b></td><td class="r"><b>${c.falta > 0.5 ? nf(c.falta) : '–'}</b></td><td class="r">${c.falta > 0.5 ? nf(c.por_dia) : '–'}</td><td class="r">${nf(c.ritmo)}</td><td><span class="rf-tag rf-${st.k}">${st.t}</span></td><td class="r">${nf(c.n_atrasados)} · ${nf(c.potencial)} m³</td><td class="sub">${(c.clientes||[]).slice(0,3).map(x => `${esc(x.nome)} (~${nf(x.gap)})`).join(' · ')}</td></tr>`; }).join('')}</table></div>`;
+    box.querySelectorAll('tr[data-c]').forEach(tr => tr.onclick = async () => { S.cart = tr.dataset.c; S.tab = 'hoje'; await abrir(); });
+  } catch(e) { box.remove(); }
+}
 async function telaMetas() {
   S.view = 'metas';
   MTA.mes = MTA.mes || mtProxMes();
