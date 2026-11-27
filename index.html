@@ -346,6 +346,7 @@ var.mtv{font-style:normal;display:inline}
 .cr-c{background:#fff8f2;border-radius:14px;padding:12px 14px;border-left:5px solid var(--or)}.cr-c.rf-cr{background:#fff3f2;border-left-color:var(--coral)}.cr-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.cr-h b{font:700 15px Poppins,sans-serif;color:var(--g)}
 .cr-c p{margin:0 0 6px;font-size:13.5px;line-height:1.5}.cr-a{color:#8a3d00}
 @media(max-width:900px){.rk-r{grid-template-columns:30px 1fr 52px;}.rk-bar{grid-column:1/-1;order:5}.rk-falta{display:none}}
+.pc-ext{border:2px dashed #f0a24b;background:#fffaf3}
 </style>
 </head>
 <body>
@@ -1377,7 +1378,6 @@ async function carregarPed() {
     api(`pedidos?data=eq.${P.data}&filial=eq.${P.fil}&select=*&order=criado_em.desc`)]);
   P.painel = pn; P.peds = peds;
   try { P.vend = await rpc('painel_vendas_consultor', {p_data:P.data}); } catch(e) { P.vend = null; }
-  P.ext = null; if (S.gestao || ehOp()) { try { P.ext = await rpc('pedidos_externos', {p_data:P.data, p_filial:P.fil}); } catch(e) { P.ext = null; } }
   if (ehOp()) { try { P.pend = await api('pedidos?status=eq.A&select=id,filial,data'); } catch(e) {} }
   await carregarAlerta();
   desenharPed();
@@ -1442,6 +1442,9 @@ function cartoesFilial(R, gs, ts) {
 }
 function cartoesCarteiras(R, gs, carts, cons) {
   return `<div class="pcards">${carts.map(c => {
+    if (c === 'BA') { const ls = gs.map(g => { const l = lin('carteira', c, g); if (!l || !+l.usado) return '';
+        return `<div class="cg"><span>${GR[g]}</span><span><b style="color:#a24c00">${nf(l.usado)}</b> <small style="color:var(--mut)">lançado${+l.cota ? ' · cota ' + nf(l.cota) : ''}</small></span><div class="mb"><i style="left:0;width:100%;background:#f0a24b"></i></div></div>`; }).join('');
+      return `<div class="pcard pc-ext"><h4>COF / BA<small>carteiras de fora · SICOF</small></h4>${ls || '<div class="cg"><span class="mut">Nada lançado até agora</span></div>'}</div>`; }
     const linhas = gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '';
       const cota = +l.cota || 0, usado = +l.usado || 0, sd = cota - usado;
       const pct = cota ? Math.min(100 * usado / cota, 100) : 100;
@@ -1471,8 +1474,8 @@ function desenharPed() {
   const term = `<table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
     ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => { if (!t.grupos.includes(g)) return '<td class="r mut">—</td>'; const l = lin('terminal', String(t.id), g); return l ? cel(l.cota, l.usado) : '<td class="r mut">sem cota</td>'; }).join('')}</tr>`).join('')}</tbody></table>`;
 
-  const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort();
-  const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'Bahia (sem consultor)' : '');
+  const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort((a,b) => (a === 'BA') - (b === 'BA') || a.localeCompare(b));
+  const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'COF / BA · carteiras de fora' : '');
   const ctab = carts.length ? cartoesCarteiras(R, gs, carts, cons) + `<details class="mut" style="margin-top:4px"><summary>Ver em tabela</summary><table class="ptab"><thead><tr><th>Carteira</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
     ${carts.map(c => `<tr><td><b>${esc(c)}</b><small>${esc(cons(c))}</small></td>${gs.map(g => { const l = lin('carteira', c, g); if (!l || !(+l.cota || +l.usado)) return '<td class="r mut">—</td>'; const sd = (+l.cota||0) - (+l.usado||0); return sd < 0 && !R.resAberta ? `<td class="r"><b class="avn">+${nf(-sd)}</b><small>avançou · cota ${nf(l.cota)}</small></td>` : cel(l.cota, l.usado); }).join('')}</tr>`).join('')}</tbody></table></details>`
     : '<div class="empty">Nenhuma carteira sua tem peso nesta filial.</div>';
@@ -1484,6 +1487,7 @@ function desenharPed() {
   const peds = [...P.peds].filter(p => ehOp() || !p.virado_base).sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || b.id - a.id);
   const prodTxt = p => PRODS.filter(([k]) => +p[k]).map(([k]) => `<span class="pq">${PCURTO[k]} <b>${nf(p[k])}</b></span>`).join(' ');
   const acoes = p => { const s = statusEf(p, R); const b = [];
+    if (p.origem === 'externa') return '<small class="mut">automático (SICOF)</small>';
     const dono = podeLancar() && (ehOp() || (S.carteiras.includes(p.carteira) && p.origem !== 'gestao')) && !R.passado;
     if (s === 'A' && ehOp()) b.push(`<button class="btn sm ok" data-a="aut" data-id="${p.id}">Autorizar</button><button class="btn sm sec" data-a="neg" data-id="${p.id}">Negar</button>`);
     if ((dono && ['C','R','A','E'].includes(s)) || (ehOp() && ['C','R','A','E','V'].includes(s) && !p.virado)) b.push(`<button class="btn sm sec" data-a="edit" data-id="${p.id}">Editar</button>`);
@@ -1495,9 +1499,9 @@ function desenharPed() {
   const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
     ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
       return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
-      <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${ehOp() && p.virado_base ? ' <span class="tag out">Base: carregado após a abertura</span>' : ''}${ehOp() && p.carregado_em ? ` <span class="tag out">Base: carregou em ${dt(p.carregado_em)}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
+      <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${p.origem === 'externa' ? ' <span class="tag out">COF/BA · SICOF</span>' : ''}${ehOp() && p.virado_base ? ' <span class="tag out">Base: carregado após a abertura</span>' : ''}${ehOp() && p.carregado_em ? ` <span class="tag out">Base: carregou em ${dt(p.carregado_em)}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
         ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
-      <td>${esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
+      <td>${p.origem === 'externa' ? 'COF/BA' : esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
       <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}${p.origem === 'gestao' ? ' · Gestão' : P.users[p.criado_por] ? ' · ' + esc(P.users[p.criado_por].split(' ')[0]) : ''}</small></td>
       <td class="acts">${acoes(p)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum pedido lançado nesta filial neste dia.</div>';
 
@@ -1511,9 +1515,7 @@ function desenharPed() {
       <details class="mut"><summary>Ver em tabela</summary><div class="pgr"><div><h3>Filial</h3>${resumo}</div><div><h3>Saldo por terminal</h3>${term}</div></div></details></section>
     <section class="blk"><div class="bh"><div><h3>${verTodas() ? 'Carteiras' : 'Minhas carteiras'}</h3><p class="sub">Cota = (cota da filial − reserva das bandeiras) × peso. Até 10:30 cada carteira respeita a sua cota; depois todos podem avançar até o saldo livre da filial. Virados não descontam de nenhuma cota.</p></div></div>${ctab}</section>
     ${form}
-    <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${P.aba === 'ext' ? 'Faturado nos nossos terminais para clientes de fora das nossas carteiras (Bahia, COF e outras). Só informativo: não entra em cota, meta nem resultado da equipe.' : `${peds.length} pedido(s) · atualiza sozinho a cada 30 s`}</p></div>
-      ${P.ext ? `<div class="seg" id="pAba"><button data-a="eq" class="${P.aba !== 'ext' ? 'on' : ''}">Nossas carteiras · ${peds.length}</button><button data-a="ext" class="${P.aba === 'ext' ? 'on' : ''}">BA / COF${extTot() ? ' · ' + nf(extTot()/1000, 1) + ' m³' : ''}</button></div>` : ''}</div>
-      ${P.ext && P.aba === 'ext' ? listaExt(ts) : lista}</section>
+    <section class="blk"><div class="bh"><div><h3>Pedidos</h3><p class="sub">${peds.length} pedido(s) · atualiza sozinho a cada 30 s${peds.some(p => p.origem === 'externa') ? ' · <b>COF/BA</b> = faturado para carteiras de fora, puxado do SICOF' : ''}</p></div></div>${lista}</section>
   </main>`;
   ligarHdrPed();
   ligarSegModo();
@@ -1526,34 +1528,12 @@ function desenharPed() {
     try { await api(`filiais?codigo=eq.${P.fil}`, {method:'PATCH', body:JSON.stringify({liberada_equipe:v})}); fil.liberada_equipe = v;
       toast(v ? `${fil.nome} liberada: consultores e externos já podem lançar` : `${fil.nome} voltou a ficar só com você e o Gabriel`); desenharPed(); } catch(x) { toast(errTxt(x)); } };
   document.querySelectorAll('.acts button').forEach(b => b.onclick = () => acaoPed(b.dataset.a, +b.dataset.id));
-  document.querySelectorAll('#pAba button').forEach(b => b.onclick = () => { P.aba = b.dataset.a; desenharPed(); });
   if ($('.mv-d')) $('.mv-d').ontoggle = e => { S.mvAberto = e.target.open; };
   document.querySelectorAll('.mv-reg button').forEach(b => b.onclick = () => { S.mvReg = b.dataset.r; desenharPed(); });
   if (podeForm) ligarFormPed(R);
 }
 
 
-/* ---------- BA / COF: faturado nos nossos terminais para carteiras de fora ---------- */
-const EXT_ST = {FT:['Faturado','ok'], CO:['Confirmado','rsv'], BL:['Bloqueado','neg'], FP:['Refaturamento','aut']};
-const extTot = () => (P.ext?.linhas || []).filter(l => l.situacao === 'FT').reduce((s,l) => s + (+l.total||0), 0);
-const fmtCnpj = c => (c||'').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
-function listaExt(ts) {
-  const L = P.ext.linhas || []; const PR = [['gas','Gasolina'],['eta','Etanol'],['s10','S10'],['s500','S500']];
-  const quando = P.ext.atualizado ? `Dados do SICOF de ${new Date(P.ext.atualizado).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}.` : '';
-  if (!L.length) return `<div class="empty">Nada faturado para carteiras de fora nesta filial em ${dt(P.data)}. ${quando}</div>`;
-  const prs = PR.filter(([k]) => L.some(l => +l[k]));
-  const terms = [...new Set(L.map(l => l.terminal))];
-  const soma = (f, k) => L.filter(f).reduce((s,l) => s + (+l[k]||0), 0);
-  const tab = `<table class="ptab"><thead><tr><th>Terminal</th>${prs.map(([,n]) => `<th class="r">${n}</th>`).join('')}<th class="r">Total faturado</th><th class="r">Em aberto</th></tr></thead><tbody>
-    ${terms.map(t => { const ft = l => l.terminal === t && l.situacao === 'FT'; return `<tr><td><b>${esc(t)}</b></td>${prs.map(([k]) => `<td class="r">${nf(soma(ft, k))}</td>`).join('')}<td class="r"><b>${nf(soma(ft,'total'))}</b></td><td class="r mut">${nf(soma(l => l.terminal === t && l.situacao !== 'FT', 'total'))}</td></tr>`; }).join('')}
-    <tr class="tot"><td><b>Total</b></td>${prs.map(([k]) => `<td class="r"><b>${nf(soma(l => l.situacao === 'FT', k))}</b></td>`).join('')}<td class="r"><b>${nf(extTot())}</b></td><td class="r mut">${nf(soma(l => l.situacao !== 'FT', 'total'))}</td></tr></tbody></table>`;
-  const lista = `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th></tr></thead><tbody>
-    ${L.map(l => { const st = EXT_ST[l.situacao] || [l.situacao, '']; return `<tr><td><span class="stp ${st[1]}">${st[0]}</span></td>
-      <td><b>${esc(l.nome || 'Cliente não cadastrado no CRM')}</b><small>${fmtCnpj(l.cnpj)}${l.municipio ? ' · ' + esc(l.municipio) + (l.uf ? '/' + esc(l.uf) : '') : ''}${l.pedidos ? ' · SICOF ' + esc(l.pedidos) : ''}</small></td>
-      <td>${l.carteira ? esc(l.carteira) : '<span class="mut">BA / COF</span>'}</td><td>${esc(l.terminal || '')}</td>
-      <td>${PR.filter(([k]) => +l[k]).map(([k,n]) => `<span class="pq">${n} <b>${nf(l[k])}</b></span>`).join(' ')}</td></tr>`; }).join('')}</tbody></table></div>`;
-  return `${tab}<p class="sub" style="margin:10px 0 6px">${L.length} linha(s) · ${quando}</p>${lista}`;
-}
 /* ---------- MINHAS VENDAS + RANKING POR REGIÃO (topo dos Pedidos do dia) ---------- */
 const REGIOES = ['Suape e Cabedelo','Maranhão','Juazeiro e Teresina','Sinop'];
 function rankVendas() {
