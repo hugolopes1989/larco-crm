@@ -314,6 +314,8 @@ body.noel .btn:not(.sec){box-shadow:0 0 0 2px rgba(255,204,0,.0),0 3px 10px rgba
 .mtpc{width:62px;border:1.5px solid var(--line);border-radius:8px;padding:5px 6px;font:700 14px Inter,sans-serif;text-align:right;margin-right:2px}.mtpc.on,.mtpc:focus{border-color:var(--or);color:#c25700}
 .mtpfb{margin-top:4px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px 10px;font:600 12px Inter,sans-serif;color:var(--g);cursor:pointer}.mtpfb.on{border-color:var(--or);color:#c25700;background:#fff4e5}
 .mtt tr.mtpf>td{background:#fbfcff;padding:10px 14px}.mtpfw{display:flex;flex-direction:column;gap:6px;max-width:620px}.mtpfw .mtt td,.mtpfw .mtt th{padding:5px 8px}.mtpfw .btn{align-self:flex-start}
+.mtsw{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px 3px 4px;font:700 12px Inter,sans-serif;color:var(--mut);cursor:pointer}.mtsw i{width:26px;height:16px;border-radius:999px;background:#cfd5e6;position:relative;transition:.2s}.mtsw i:after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:.2s}.mtsw.on{color:var(--ok);border-color:#9fd9b6}.mtsw.on i{background:var(--ok)}.mtsw.on i:after{left:12px}
+.mtt tr.mtoff td{color:var(--mut);background:#f6f6f8}
 .mtm3[readonly]{border-style:dashed;background:#f5f7fd}
 .mtm3{width:84px;border:2px solid var(--g);border-radius:8px;padding:5px 8px;font:800 15px Poppins,sans-serif;color:var(--g);text-align:right}
 var.mtv{font-style:normal;display:inline}
@@ -1056,7 +1058,7 @@ const MT_COL = ['GAS','ETA','S10','S500'];
 const MT_PAR0 = { wSet:25, wOut:35, wNov:40, metas:{}, capFora:12 };
 
 function calcMetas(D, P) {
-  P = Object.assign({}, MT_PAR0, P || {}); P.metas = P.metas || {}; P.pf = P.pf || {};
+  P = Object.assign({}, MT_PAR0, P || {}); P.metas = P.metas || {}; P.pf = P.pf || {}; P.off = P.off || {};
   const mes = D.mes; const y = +mes.slice(0,4), m = +mes.slice(5,7);
   const ym = k => { const d = new Date(y, m - 1 - k, 1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); };
   const mN = ym(1), mO = ym(2), mS = ym(3);
@@ -1100,12 +1102,18 @@ function calcMetas(D, P) {
     const pc0 = mixC[c] ? (metaCart[c] / mixC[c] - 1) * 100 : 0; metaFil[c] = {};
     Object.entries(baseF[c]).forEach(([f, b]) => metaFil[c][f] = b * (1 + (pf[f] != null ? +pf[f] : pc0) / 100));
     metaCart[c] = Object.values(metaFil[c]).reduce((s,v) => s + v, 0); });
+  // filial desligada para a carteira: o volume dela vai para as outras filiais da carteira (o total da carteira não muda)
+  const offC = {}; Object.keys(mixC).forEach(c => { const o = (P.off[c]||[]).filter(f => baseF[c][f]); if (o.length && Object.keys(baseF[c]).some(f => !o.includes(f))) offC[c] = o; });
+  Object.entries(offC).forEach(([c, o]) => { if (!metaFil[c]) return; const tot = metaCart[c]; o.forEach(f => metaFil[c][f] = 0);
+    const s = Object.values(metaFil[c]).reduce((a,v) => a + v, 0); if (s > 0) Object.keys(metaFil[c]).forEach(f => metaFil[c][f] *= tot / s); });
   // distribui o total de cada carteira pelas filiais × produtos onde ela retira, conforme a necessidade de cada filial (ajuste RAS)
   const somaCart = Object.values(metaCart).reduce((s,v) => s + v, 0);
   // células ajustáveis: filiais onde a carteira tem volume relevante (≥ 5% dela e ≥ 10 m³); as outras ficam proporcionais à base
-  nosL.forEach(x => { if (metaFil[x.cart]) { const bf = baseF[x.cart][x.fil]; x.ref = bf ? x.base * metaFil[x.cart][x.fil] / bf : 0; x.meta = x.ref; x.aj = false; x.fixo = true; return; }
-    const kc = mixC[x.cart] ? metaCart[x.cart] / mixC[x.cart] : 0; x.ref = x.base * kc; x.meta = x.ref;
-    x.aj = x.base >= 10 && x.base >= 0.05 * (mixC[x.cart]||0); });
+  nosL.forEach(x => { if (offC[x.cart] && offC[x.cart].includes(x.fil)) { x.ref = 0; x.meta = 0; x.aj = false; x.fixo = true; x.off = true; return; }
+    if (metaFil[x.cart]) { const bf = baseF[x.cart][x.fil]; x.ref = bf ? x.base * metaFil[x.cart][x.fil] / bf : 0; x.meta = x.ref; x.aj = false; x.fixo = true; return; }
+    const bAt = (mixC[x.cart]||0) - (offC[x.cart]||[]).reduce((a,f) => a + baseF[x.cart][f], 0);
+    const kc = bAt > 0 ? metaCart[x.cart] / bAt : 0; x.ref = x.base * kc; x.meta = x.ref;
+    x.aj = x.base >= 10 && x.base >= 0.05 * bAt; });
   const lo = 0.6, hi = 1.8; // cada filial pode ir de 60% a 180% do que a carteira tiraria lá pela mistura normal
   for (let it = 0; it < 300; it++) {
     Object.keys(alvo).forEach(kk => { const ls = nosL.filter(x => x.fil+'|'+x.col === kk); const fix = ls.filter(x => !x.aj).reduce((a,x) => a + x.meta, 0);
@@ -1157,7 +1165,7 @@ function calcMetas(D, P) {
     t.med += c.med; t.base += c.base; t.meta += c.meta; t.fils.push(c); });
   const cartList = Object.values(porCart).sort((a,b) => b.meta - a.meta);
   const T = k => MT_FIL.reduce((s,f) => s + fil[f][k], 0);
-  return {P, fNov, meses:{S:mS,O:mO,N:mN}, linhas, cf, fil, cartList, metaCart, sug, k, g, cortes: cortesC, mixC, baseF, metaFil,
+  return {P, fNov, meses:{S:mS,O:mO,N:mN}, linhas, cf, fil, cartList, metaCart, sug, k, g, cortes: cortesC, mixC, baseF, metaFil, offC,
     totMeta:T('meta'), totMetaAnt:T('metaAnt'), totBase:T('base'), totNos:T('nos'), totFora:T('fora'), totSoma:T('soma')};
 }
 
@@ -1689,7 +1697,7 @@ async function telaMetas() {
     MTA.D = await rpc('dados_meta', {p_mes: MTA.mes});
     if (!MTA.P) { let sv = null; try { sv = JSON.parse(localStorage.getItem('larco_mt_tot1') || 'null'); } catch(e) {} MTA.P = Object.assign({}, MT_PAR0, sv || {}); MTA.P.metas = MTA.P.metas || {}; }
     if ((MTA.D.metas_mes||[]).length) { MTA.P.metas = {}; MTA.D.metas_mes.forEach(r => MTA.P.metas[r.cart] = +r.meta_m3); MTA.gravadas = true;
-      try { const cr = JSON.parse(await rpc('criterio_meta', {p_mes: MTA.mes}) || 'null'); MTA.P.pf = (cr && cr.pf) || {}; } catch(e) { MTA.P.pf = {}; } }
+      try { const cr = JSON.parse(await rpc('criterio_meta', {p_mes: MTA.mes}) || 'null'); MTA.P.pf = (cr && cr.pf) || {}; MTA.P.off = (cr && cr.off) || {}; } catch(e) { MTA.P.pf = {}; MTA.P.off = {}; } }
     mtRender();
   } catch(e) { $('#mtBody').innerHTML = `<main class="eq" style="margin-top:20px"><div class="empty">Não consegui carregar os dados: ${esc(e.message||e)}</div></main>`; }
 }
@@ -1727,7 +1735,7 @@ function mtRender() {
        <td class="r"><input class="mtm3" type="number" step="10" min="0" value="${Math.round(R.metaCart[c.cart])}" data-mc="${esc(c.cart)}" ${R.metaFil[c.cart] ? 'readonly title="Soma dos % por filial — mude em Por filial ou digite o % da carteira"' : ''}></td>
        <td class="r"><input class="mtpc" type="number" step="1" value="${mtPcCart(c.cart, R)}" data-pc="${esc(c.cart)}"><em class="sub">%</em></td>
        <td class="r" data-mf="${esc(c.cart)}">${mtFinal(c, R)}</td>
-       <td class="r" data-vn="${esc(c.cart)}">${mtPctTxt(c.metaAnt ? mtPct(c.meta, c.metaAnt) : null)}</td><td class="r" data-vb="${esc(c.cart)}">${mtPctTxt(mtPct(c.meta, c.base))}</td><td class="sub"><span data-fl="${esc(c.cart)}">${mtFils(c)}</span><br><button type="button" class="mtpfb${R.metaFil[c.cart] ? ' on' : ''}" data-pfb="${esc(c.cart)}">${MTA.aberto[c.cart] ? '▴' : '▾'} Por filial${R.metaFil[c.cart] ? ' (ajustado)' : ''}</button></td></tr>
+       <td class="r" data-vn="${esc(c.cart)}">${mtPctTxt(c.metaAnt ? mtPct(c.meta, c.metaAnt) : null)}</td><td class="r" data-vb="${esc(c.cart)}">${mtPctTxt(mtPct(c.meta, c.base))}</td><td class="sub"><span data-fl="${esc(c.cart)}">${mtFils(c)}</span><br><button type="button" class="mtpfb${R.metaFil[c.cart] || R.offC[c.cart] ? ' on' : ''}" data-pfb="${esc(c.cart)}">${MTA.aberto[c.cart] ? '▴' : '▾'} Por filial${R.metaFil[c.cart] || R.offC[c.cart] ? ' (ajustado)' : ''}</button>${R.offC[c.cart] ? `<br><span class="tag warn">não atende: ${R.offC[c.cart].map(f => MT_NOMEF[f]).join(', ')}</span>` : ''}</td></tr>
        ${MTA.aberto[c.cart] ? mtLinhaPF(c, R) : ''}`).join('')}
      <tr class="mtsubt"><td><b>Total equipe</b></td><td class="r"><b>${nf(nos.reduce((s,c) => s + c.metaAnt, 0))}</b></td><td class="r">${nf(nos.reduce((s,c) => s + c.med, 0))}</td><td class="r">${nf(nos.reduce((s,c) => s + c.base, 0))}</td><td class="r sub">${nf(nos.reduce((s,c) => s + R.sug[c.cart], 0))}</td><td class="r">${nf(Object.values(R.metaCart).reduce((s,v) => s + v, 0))}</td><td class="r">${mtPctTxt(mtPct(Object.values(R.metaCart).reduce((s,v) => s + v, 0), Object.values(R.mixC).reduce((s,v) => s + v, 0)))}</td><td class="r"><b class="mtm" id="mtTotNos">${nf(R.totNos)}</b></td><td class="r" id="mtTotVn">${mtPctTxt(mtPct(R.totNos, nos.reduce((s,c) => s + c.metaAnt, 0)))}</td><td></td><td></td></tr></table></div></section>
    <section class="blk"><div class="bh"><div><h3>Filiais</h3><p class="sub">Meta da filial = nossas carteiras + Bahia / COF. A Bahia / COF cresce como a REG3, até 12% do produto (quem já vende mais fica com o que vende), e fica com o que sobrar.</p></div></div>
@@ -1747,9 +1755,14 @@ function mtRender() {
     if (v !== '' && (!isFinite(+v) || +v <= -100)) return toast('Use um % maior que −100.');
     if (!MTA.P.pf[c]) { const pc0 = mtPcCart(c, MTA.R); MTA.P.pf[c] = {}; Object.keys(MTA.R.baseF[c] || {}).forEach(k => MTA.P.pf[c][k] = pc0); }
     MTA.P.pf[c][f] = v === '' ? mtPcCart(c, MTA.R) : +v; MTA.P.metas[c] = Math.round(MTA.R.metaCart[c]); reRender(); }));
+  $('#mtBody').querySelectorAll('[data-off]').forEach(el => el.onclick = () => { const [c, f] = el.dataset.off.split('|'); MTA.P.off = MTA.P.off || {};
+    const o = new Set(MTA.P.off[c] || []); if (o.has(f)) o.delete(f); else o.add(f);
+    const ativas = Object.keys(MTA.R.baseF[c] || {}).filter(k => !o.has(k));
+    if (!ativas.length) return toast('A carteira precisa atender em pelo menos uma filial.');
+    if (o.size) MTA.P.off[c] = [...o]; else delete MTA.P.off[c]; reRender(); });
   $('#mtBody').querySelectorAll('[data-pfz]').forEach(el => el.onclick = () => { delete MTA.P.pf[el.dataset.pfz]; reRender(); });
   const preencher = fn => { MTA.P.metas = {}; MTA.R.cartList.filter(c => !c.outra).forEach(c => MTA.P.metas[c.cart] = Math.round(fn(c))); mtSalvarPar(); const y = window.scrollY; mtRender(); window.scrollTo(0, y); };
-  $('#mtUsarSug').onclick = () => { MTA.P.metas = {}; MTA.P.pf = {}; mtSalvarPar(); const y = window.scrollY; mtRender(); window.scrollTo(0, y); };
+  $('#mtUsarSug').onclick = () => { MTA.P.metas = {}; MTA.P.pf = {}; MTA.P.off = {}; mtSalvarPar(); const y = window.scrollY; mtRender(); window.scrollTo(0, y); };
   if ($('#mtGravar')) $('#mtGravar').onclick = mtGravar;
   if ($('#mtCsv')) $('#mtCsv').onclick = mtCsvOutras;
 }
@@ -1757,13 +1770,15 @@ function mtPcCart(c, R) { const b = R.mixC[c]; return b ? Math.round((R.metaCart
 function mtLinhaPF(c, R) {
   const bf = R.baseF[c.cart] || {}; const pf = (MTA.P.pf||{})[c.cart] || {}; const pc0 = mtPcCart(c.cart, R);
   const fs = MT_FIL.filter(f => bf[f] > 0.05);
-  if (!fs.length) return `<tr class="mtpf"><td colspan="11" class="sub">Sem base nas filiais.</td></tr>`;
+  if (!fs.length) return `<tr class="mtpf"><td colspan="12" class="sub">Sem base nas filiais.</td></tr>`;
   const fin = f => (c.fils.find(x => x.fil === f) || {meta:0}).meta;
-  return `<tr class="mtpf"><td colspan="11"><div class="mtpfw"><b>${esc(c.cart)} · % por filial</b><span class="sub">Hoje todas as filiais seguem o % da carteira${R.metaFil[c.cart] ? ' até você mudar' : ` (${pc0 >= 0 ? '+' : ''}${nf(pc0,1)}%)`}. Mude o % da filial que quer aumentar ou diminuir; a meta total da carteira vira a soma das filiais.</span>
-    <table class="mtt"><tr><th>Filial</th><th class="r">Base</th><th class="r">% s/ base</th><th class="r">Meta na filial</th><th class="r" title="Depois da trava de produto">Meta final</th></tr>
+  const freq = {}; Object.values(pf).forEach(v => freq[v] = (freq[v]||0) + 1); const moda = Object.keys(freq).length ? +Object.entries(freq).sort((a,b) => b[1]-a[1])[0][0] : pc0;
+  return `<tr class="mtpf"><td colspan="12"><div class="mtpfw"><b>${esc(c.cart)} · % por filial</b><span class="sub">Hoje todas as filiais seguem o % da carteira${R.metaFil[c.cart] ? ' até você mudar' : ` (${pc0 >= 0 ? '+' : ''}${nf(pc0,1)}%)`}. Mude o % da filial que quer aumentar ou diminuir; a meta total da carteira vira a soma das filiais.</span>
+    <table class="mtt"><tr><th>Atende</th><th>Filial</th><th class="r">Base</th><th class="r">% s/ base</th><th class="r">Meta na filial</th><th class="r" title="Depois da trava de produto">Meta final</th></tr>
     ${fs.map(f => { const tem = pf[f] != null; const pcf = tem ? +pf[f] : (R.metaFil[c.cart] ? (R.metaFil[c.cart][f] / bf[f] - 1) * 100 : pc0);
       const mf = R.metaFil[c.cart] ? R.metaFil[c.cart][f] : bf[f] * (1 + pc0/100);
-      return `<tr><td>${MT_NOMEF[f]}</td><td class="r">${nf(bf[f])}</td><td class="r"><input class="mtpc${tem && Math.abs(pf[f] - pc0) > 0.5 ? ' on' : ''}" type="number" step="1" data-pff="${esc(c.cart)}|${f}" value="${tem ? pf[f] : Math.round(pcf*10)/10}"><em class="sub">%</em></td><td class="r">${nf(mf)}</td><td class="r"><b>${nf(fin(f))}</b></td></tr>`; }).join('')}
+      const off = (R.offC[c.cart]||[]).includes(f);
+      return `<tr class="${off ? 'mtoff' : ''}"><td><button type="button" class="mtsw${off ? '' : ' on'}" data-off="${esc(c.cart)}|${f}" title="${off ? 'Não atende nesta filial: clique para voltar a atender' : 'Atende nesta filial: clique para desligar e passar o volume para as outras filiais'}"><i></i>${off ? 'Não' : 'Sim'}</button></td><td>${MT_NOMEF[f]}</td><td class="r">${nf(bf[f])}</td><td class="r">${off ? '<span class="sub">–</span>' : `<input class="mtpc${tem && Math.abs(pf[f] - moda) > 0.05 ? ' on' : ''}" type="number" step="1" data-pff="${esc(c.cart)}|${f}" value="${tem ? pf[f] : Math.round(pcf*10)/10}"><em class="sub">%</em>`}</td><td class="r">${off ? '<span class="sub">vai para as outras</span>' : nf(mf)}</td><td class="r"><b>${nf(fin(f))}</b></td></tr>`; }).join('')}
     </table>${R.metaFil[c.cart] ? `<button type="button" class="btn sm sec" data-pfz="${esc(c.cart)}">Limpar % por filial</button>` : ''}</div></td></tr>`;
 }
 function mtFinal(c, R) { const cut = (R.cortes||{})[c.cart] || 0; return cut > 0.5 ? `<b class="mtm">${nf(c.meta)}</b><br><span class="tag warn" title="Reduzida porque a filial não tem produto para tudo">−${nf(cut)} falta de produto</span>` : `<b class="mtm">${nf(c.meta)}</b>`; }
