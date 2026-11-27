@@ -484,8 +484,9 @@ function render() {
     ${r.potencial_m3_mes ? `<div class="kpi"><b>${nf(r.potencial_m3_mes)} m³</b><span>Potencial/mês nos clientes</span></div>` : ''}
   </div>`;
   const LD = listaDist(); if (S.alvoCart !== S.cart) { S.alvoCart = S.cart; S.alvo = null; try { S.alvo = localStorage.getItem('larcocrm_alvo_'+S.cart); } catch(e) {} } if (S.alvo && !LD.includes(S.alvo)) S.alvo = null;
-  const tabs = [['hoje','Ligar hoje',nHoje],['clientes','Meus clientes',0],['recup','Recuperação',0],...(fixa?[]:[['prosp','Prospects',0]]),...(LD.length?[['caca','🎯 Caçar concorrente',0]]:[]),['rotas','🚗 Rotas',0],['mapa','Mapa',0]];
+  const tabs = [['hoje','Ligar hoje',nHoje],['clientes','Meus clientes',0],['recup','Recuperação',0],...(fixa?[]:[['prosp','Prospects',0]]),...(LD.length?[['caca','🎯 Caçar concorrente',0]]:[]),...(S.me.perfil === 'externo' || S.gestao ? [['rotas','🚗 Rotas',0]] : []),['mapa','Mapa',0]];
   if (fixa && (S.tab === 'prosp')) S.tab = 'hoje';
+  if (S.tab === 'rotas' && S.me.perfil !== 'externo' && !S.gestao) S.tab = 'hoje';
   const nav = `<nav class="tabs">${tabs.map(([k,l,n]) => `<button data-t="${k}" class="${S.tab===k?'on':''}">${l}${n?`<span class="n">${n}</span>`:''}${k==='recup'?` (${nRec})`:''}${k==='prosp'?` (${nPros})`:''}</button>`).join('')}</nav>`;
   const corpo = S.tab === 'rotas' ? `<div class="wrap" style="grid-template-columns:1fr"><div id="rotas" class="rotas"></div></div>` : S.tab === 'mapa' ? `<div class="wrap" style="grid-template-columns:1fr"><div>${legenda()}<div id="map"></div></div></div>` :
     `<div class="wrap"><div>${ferramentas()}<div class="list" id="lista"></div></div><div class="ficha" id="ficha"><div class="empty">Selecione um cliente na lista.</div></div></div>`;
@@ -734,7 +735,7 @@ function cttLinha(xs, g) {
   return `<div class="ctt"><div><b>👤 ${c?.contato_comprador ? esc(c.contato_comprador) : '<span class="sub">Comprador não informado</span>'}</b>
     · 💬 ${wa ? fmtCel(wa) : '<span class="sub">sem WhatsApp</span>'}${c?.contato_telefone ? ` · ☎️ ${esc(c.contato_telefone)}` : ''}${!c?.contato_whatsapp && telQ ? ` <span class="sub">(cadastro: ${telQ})</span>` : ''}
     ${c?.contato_atualizado_em ? `<div class="sub">Contato atualizado por ${esc(c.contato_atualizado_por || '')} em ${dt(c.contato_atualizado_em)}</div>` : ''}</div>
-    <div class="cbt"><button type="button" class="btn wa" id="bWA">💬 WhatsApp</button><button type="button" class="btn sec" id="bCtt">✏️ Atualizar contato</button>${g ? '' : '<button type="button" class="btn sec" id="bVis">📍 Registrar visita</button>'}</div></div>`;
+    <div class="cbt"><button type="button" class="btn wa" id="bWA">💬 WhatsApp</button><button type="button" class="btn sec" id="bCtt">✏️ Atualizar contato</button>${g || S.me.perfil !== 'externo' ? '' : '<button type="button" class="btn sec" id="bVis">📍 Registrar visita</button>'}</div></div>`;
 }
 async function salvarCtt(xs, nome, wa, tel) {
   const body = {contato_comprador: nome || null, contato_whatsapp: wa || null, contato_telefone: tel || null, contato_atualizado_em: new Date().toISOString(), contato_atualizado_por: S.me?.nome || null};
@@ -1376,7 +1377,7 @@ function desenharRota() {
       ${diaPs.map((p, i) => { const x = cliPorId(p.cliente_id) || {razao_social:'Posto fora da carteira'}; const v = RT.vis[p.id];
         return `<div class="rt-p ${v ? 'ok' : ''}"><span class="rt-n">${v ? '✓' : i + 1}</span><div class="rt-pi"><b>${esc(x.razao_social)}</b><span class="sub">${esc(x.municipio || '')}</span><span class="rt-mot">${esc(p.motivo || '')}</span>
           ${v ? `<span class="rt-ok">Visitado ${new Date(v.inicio).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})} · ${RES_VIS[v.resultado] || v.resultado}${v.tanque ? ' · tanque ' + v.tanque : ''}</span>` : ''}</div>
-          <div class="rt-pa2">${v ? '' : `<button class="btn sm" data-vis="${p.id}" data-c="${p.cliente_id}">📍 Iniciar visita</button>`}</div></div>`; }).join('') || '<div class="empty">Nenhuma parada neste dia.</div>'}
+          <div class="rt-pa2">${v || S.me.perfil !== 'externo' ? '' : `<button class="btn sm" data-vis="${p.id}" data-c="${p.cliente_id}">📍 Iniciar visita</button>`}</div></div>`; }).join('') || '<div class="empty">Nenhuma parada neste dia.</div>'}
       <div class="pact">${url ? `<a class="btn" href="${url}" target="_blank" rel="noopener">🗺️ Abrir o dia no Google Maps</a>` : ''}
         ${r.status !== 'concluida' ? '<button class="btn sec" id="rtConc">Concluir rota</button>' : ''}<button class="btn sec" id="rtDel">Excluir</button></div>
     </div><div><div id="rtMap" class="rt-map"></div></div></div>`;
@@ -1543,12 +1544,12 @@ function desenharPV() {
     <div class="rt-res pv-k">${k(V.length, 'visitas')}${k(new Set(V.map(v => v.cliente_id)).size, 'postos visitados')}${k(V.filter(v => v.resultado === 'vendeu').length, 'vendas na visita')}${k(V.filter(v => v.resultado === 'cotou').length, 'cotações')}
       ${k(V.filter(v => v.gas || v.s10 || v.eta || v.s500).length, 'preços de bomba')}${k(V.filter(v => v.dist > 500).length, 'fora do posto (> 500 m)', V.some(v => v.dist > 500) ? 'al' : '')}${k(rotas.length, 'rotas no período')}</div>
     ${semVis.length && !PV.pessoa ? `<div class="galert">⚠ <b>Externos sem nenhuma visita no período:</b> ${semVis.map(p => esc(p.nome) + ` <span class="mut">(${esc(p.carteiras)})</span>`).join(', ')}</div>` : ''}</section>
-  <section class="blk"><div class="bh"><div><h3>Equipe</h3><p class="sub">Clique na pessoa para ver só as visitas, rotas e fotos dela.</p></div></div><div class="scroll"><table class="mtt pv-eq">
+  <section class="blk"><div class="bh"><div><h3>Externos</h3><p class="sub">Clique no externo para ver só as visitas, rotas e fotos dele.</p></div></div><div class="scroll"><table class="mtt pv-eq">
     <tr><th>Pessoa</th><th>Carteiras</th><th class="r">Visitas</th><th class="r">Postos</th><th class="r">Vendeu</th><th class="r">Cotou</th><th class="r">Fora do posto</th><th class="r">Rotas</th><th>Última visita</th></tr>
     ${todas.map(p => `<tr class="clk ${p.visitas === 0 ? 'zero' : ''} ${PV.pessoa === p.id ? 'sel' : ''}" data-u="${p.id}"><td><i class="pv-dot" style="background:${cor[p.id]}"></i><b>${esc(p.nome)}</b> <span class="tag ${p.perfil === 'externo' ? 'c' : ''}">${p.perfil === 'externo' ? 'Externo' : p.perfil === 'consultor' ? 'Consultor' : 'Gestão'}</span></td>
       <td class="sub">${esc(p.carteiras || '')}</td>${p.visitas == null ? `<td class="r">${(D.visitas || []).filter(v => v.usuario_id === p.id).length}</td><td colspan="6"></td>` : `<td class="r"><b>${p.visitas}</b></td><td class="r">${p.postos}</td><td class="r">${p.vendeu}</td><td class="r">${p.cotou}</td><td class="r ${p.longe ? 'neg' : ''}">${p.longe || '–'}</td><td class="r">${p.rotas}</td><td class="sub">${p.ultima ? quando(p.ultima) : '<span class="neg">sem visitas</span>'}</td>`}</tr>`).join('')}
   </table></div></section>
-  <section class="blk"><div class="bh"><div><h3>Mapa das visitas</h3><p class="sub">Cada cor é uma pessoa. Bolinha com borda vermelha = registrada a mais de 500 m do posto.</p></div></div><div id="pvMap" class="pv-map"></div></section>
+  <section class="blk"><div class="bh"><div><h3>Mapa das visitas</h3><p class="sub">Cada cor é um externo. Bolinha com borda vermelha = registrada a mais de 500 m do posto.</p></div></div><div id="pvMap" class="pv-map"></div></section>
   <section class="blk"><div class="bh"><div><h3>Rotas</h3></div></div>
     ${rotas.length ? `<div class="rt-cards">${rotas.map(r => { const t = TIPOS_ROTA[r.tipo] || TIPOS_ROTA.propria; return `<div class="rt-card ${r.status}"><span class="rt-tp">${t.i} ${t.n} · ${esc(r.carteira)}</span><b>${esc(r.nome)}</b><span class="sub">${esc(r.pessoa)} · ${dt(r.data_ini)}${r.dias > 1 ? ` (${r.dias} dias)` : ''}</span>
       <div class="track"><i style="width:${r.n ? 100 * r.vis / r.n : 0}%"></i></div><span class="sub">${r.vis} de ${r.n} visitados · ${r.vendas} venda${r.vendas === 1 ? '' : 's'}${r.status === 'concluida' ? ' · concluída' : ''}</span></div>`; }).join('')}</div>` : '<div class="empty">Nenhuma rota no período.</div>'}</section>
