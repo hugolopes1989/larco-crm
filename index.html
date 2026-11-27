@@ -236,7 +236,15 @@ body.noel header{background-image:radial-gradient(rgba(255,255,255,.28) 1px,tran
 .noel-faixa b{color:var(--ye)}.noel-faixa small{opacity:.75;margin-left:6px}.nf-a{display:flex;gap:8px}
 .nf-b{border:0;border-radius:999px;padding:7px 14px;font:700 13px Poppins,sans-serif;background:var(--or);color:#fff;cursor:pointer}.nf-b.sec{background:rgba(255,255,255,.14)}
 .noel-box{display:flex;gap:20px;flex-wrap:wrap;width:min(860px,100%);max-height:92vh;overflow:auto}.noel-img{width:min(320px,100%);border-radius:14px;align-self:flex-start}
-.noel-cx{flex:1 1 300px;display:flex;flex-direction:column;gap:6px}.noel-eb{margin:0;font:700 12px Inter,sans-serif;letter-spacing:1.5px;color:var(--or);text-transform:uppercase}
+.noel-cx{flex:1 1 300px;display:flex;flex-direction:column;gap:6px}
+.noel-pop .noel-box{background:radial-gradient(rgba(255,255,255,.35) 1px,transparent 1.7px) 0 0/28px 28px,radial-gradient(rgba(255,255,255,.18) 1px,transparent 1.6px) 14px 9px/19px 19px,linear-gradient(170deg,#0b1550,#16288a 70%,#1d36a8);color:#fff;border:2px solid #f7b733;box-shadow:0 18px 50px rgba(5,10,40,.55)}
+.noel-pop .noel-img{box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.noel-pop .noel-cx{position:relative;background:#0d1240;border:3px solid #f7b733;border-radius:16px;padding:30px 20px 18px;box-shadow:0 0 0 4px rgba(247,183,51,.18),0 0 24px rgba(247,183,51,.25) inset;align-self:flex-start}
+.noel-pop .noel-cx::before{content:'';position:absolute;left:10px;right:10px;top:8px;height:10px;background:radial-gradient(circle,#ffcc00 0 3.5px,transparent 4.5px) 0 0/22px 10px,radial-gradient(circle,#e2413b 0 3.5px,transparent 4.5px) 11px 0/22px 10px;filter:drop-shadow(0 0 4px rgba(255,204,0,.8));animation:noelPiscaL 1.6s steps(2) infinite}
+@keyframes noelPiscaL{50%{filter:drop-shadow(0 0 1px rgba(255,204,0,.3));opacity:.75}}
+.noel-pop .noel-eb{color:#ffcc00}.noel-pop .noel-cx h3{color:#ffd65a;font:800 24px Poppins,sans-serif;text-shadow:0 2px 0 #7a4a10}
+.noel-pop .noel-des{color:#fff}.noel-pop .noel-val{color:#ffcc00}.noel-pop .noel-meu,.noel-pop .noel-reg{color:#d6dcf5}.noel-pop .noel-meu b,.noel-pop .noel-reg b{color:#ffd65a}
+.noel-pop .btn.sec{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.35)}.noel-eb{margin:0;font:700 12px Inter,sans-serif;letter-spacing:1.5px;color:var(--or);text-transform:uppercase}
 .noel-cx h3{font-size:24px}.noel-des{margin:0;font:600 21px/1.35 Poppins,sans-serif;color:var(--ink)}.noel-val{margin:0;font-weight:700;color:var(--coral)}
 .noel-meu,.noel-reg{margin:0;color:var(--mut)}.noel-meu b,.noel-reg b{color:var(--g)}
 .noel-caixa{width:74px;height:62px;position:relative;margin:26px 0 6px 10px}.noel-caixa::before{content:'';position:absolute;inset:18px 0 0;background:var(--or);border-radius:6px}.noel-caixa::after{content:'';position:absolute;left:-4px;right:-4px;top:4px;height:16px;background:#ff9f4a;border-radius:5px;animation:noelTampa 1.2s ease-out forwards}.noel-caixa i{position:absolute;left:31px;top:4px;width:12px;bottom:0;background:var(--ye);z-index:1}
@@ -2664,14 +2672,14 @@ function noelPopup() {
   const mc = noelMinhas(), meu = noelLista().find(x => x.carts.some(c => mc.has(c)));
   const nome = (S.me.nome || '').split(' ')[0];
   const d = document.createElement('div'); d.className = 'modal noel-pop';
-  d.innerHTML = `<div class="mbox noel-box"><img src="natal/larco-noel.jpg" alt="Arte da campanha Larco Noel" class="noel-img">
+  d.innerHTML = `<div class="mbox noel-box"><img src="natal/larco-noel-desafio.jpg" alt="Larco Noel · O Desafio Mensal do Larquinho" class="noel-img">
     <div class="noel-cx"><p class="noel-eb">${noelTeste && noelHoje() < NOEL.ini ? 'PRÉVIA · ' : ''}${esc(dt(j.dia))} · ${esc(j.titulo)}</p>
     <div class="noel-caixa" aria-hidden="true"><i></i></div>
     <h3>${j.coletiva ? 'Desafio coletivo de hoje' : `Seu desafio de hoje${nome ? ', ' + esc(nome) : ''}`}</h3>
     <p class="noel-des">${esc(j.desafio)}</p>
-    <p class="noel-val">Vale ${j.presentes > 1 ? `${j.presentes} presentes 🎁🎁` : '1 presente 🎁'} · até o fechamento de hoje</p>
-    ${meu ? `<p class="noel-meu">Você tem <b>${meu.presentes}</b> 🎁 na árvore${meu.metaDia ? ` · meta do dia: <b>${nf(meu.metaDia,1)} m³</b>` : ''}</p>` : ''}
-    <p class="noel-reg">Quem juntar mais presentes até o fechamento vira o <b>Noel de Ouro</b> e leva o brinde!</p>
+    <p class="noel-val">Cumpriu, ganhou: ${j.presentes > 1 ? `${j.presentes} caixinhas 🎁🎁` : '1 caixinha 🎁'} · até o fechamento de hoje</p>
+    ${meu ? `<p class="noel-meu">Você já tem <b>${meu.presentes}</b> 🎁 acumuladas${meu.metaDia ? ` · meta do dia: <b>${nf(meu.metaDia,1)} m³</b>` : ''}</p>` : ''}
+    <p class="noel-reg">Acumule e ganhe: quem juntar mais caixinhas leva o <b>grande prêmio de Natal</b>!</p>
     <div class="mact"><button type="button" class="btn sec" id="nArv">Ver árvore</button><button type="button" class="btn" id="nOk">Bora! 🚀</button></div></div></div>`;
   document.body.appendChild(d);
   d.onclick = e => { if (e.target === d) d.remove(); };
