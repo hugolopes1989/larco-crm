@@ -322,7 +322,7 @@ var.mtv{font-style:normal;display:inline}
 .rf-cl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.rf-c{text-align:left;border:1px solid var(--line);background:#fafbff;border-radius:12px;padding:8px 10px;cursor:pointer;font:inherit}.rf-c:hover{border-color:var(--or)}.rf-c b{display:block;font-size:13px;color:var(--ink)}.rf-c span{display:block;font-size:11.5px;color:var(--mut)}.rf-c em{display:block;font-style:normal;font-size:12px;color:var(--ink);margin-top:3px}.rf-c strong{color:#c25700}
 @media(max-width:800px){.rf-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #larq{position:fixed;right:18px;bottom:14px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
-#larq>*{pointer-events:auto}.lq-m{width:96px;height:110px;border:0;background:none;cursor:pointer;padding:0;animation:lqpula 3.2s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(20,30,80,.18))}.lq-m svg{width:100%;height:100%}
+#larq>*{pointer-events:auto}.lq-m{width:100px;height:118px;border:0;background:none;cursor:pointer;padding:0;animation:lqpula 3.2s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(20,30,80,.18))}.lq-m{position:relative}.lq-m img{height:100%;width:auto;display:block;margin:0 auto}.lq-fx{position:absolute;inset:-18px -14px 0}.lq-fx svg{width:100%;height:100%}.lq-luz{position:absolute;left:-4px;top:-6px;font-size:22px;animation:lqpula 1.6s ease-in-out infinite}
 @keyframes lqpula{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .lq-n2{position:absolute;right:4px;bottom:92px;background:var(--coral);color:#fff;font:700 12px Poppins,sans-serif;border-radius:999px;min-width:22px;height:22px;display:grid;place-items:center;padding:0 6px}#larq.open .lq-n2{display:none}
 .lq-b{display:none;position:relative;width:min(340px,calc(100vw - 40px));background:#fff;border-radius:18px;padding:14px 16px 12px;box-shadow:0 12px 36px rgba(20,30,80,.22);margin-bottom:8px;border-top:5px solid var(--or)}
@@ -1096,81 +1096,25 @@ const mtMesTxt = d => { const t = new Date(d + 'T12:00:00').toLocaleDateString('
 const mtMesCurto = ym => { const [a,m] = ym.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+m-1] + '/' + a.slice(2); };
 function mtProxMes() { const h = hojeSP(); const d = new Date(h.getFullYear(), h.getMonth() + 1, 1); return iso(d); }
 
-// Larquinho — mascote bombinha de posto (SVG). larquinho(variante, humor)
-// humores: feliz, dica, preocupado, festa
-function larqFace(cx, cy, m, s, ink) {
-  s = s || 1; ink = ink || '#141c46';
-  const X = d => (cx + d * s).toFixed(1), Y = d => (cy + d * s).toFixed(1);
-  const eye = dx => `<circle cx="${X(dx)}" cy="${Y(0)}" r="${6.5*s}" fill="${ink}"/><circle cx="${X(dx+2.2)}" cy="${Y(-2.2)}" r="${2.2*s}" fill="#fff"/>`;
-  const happyEye = dx => `<path d="M${X(dx-6)} ${Y(2)} Q${X(dx)} ${Y(-7)} ${X(dx+6)} ${Y(2)}" stroke="${ink}" stroke-width="${3.6*s}" fill="none" stroke-linecap="round"/>`;
-  const cheeks = `<ellipse cx="${X(-25)}" cy="${Y(12)}" rx="${6*s}" ry="${3.6*s}" fill="#f7861a" opacity=".45"/><ellipse cx="${X(25)}" cy="${Y(12)}" rx="${6*s}" ry="${3.6*s}" fill="#f7861a" opacity=".45"/>`;
-  if (m === 'preocupado') return eye(-15) + eye(15) +
-    `<path d="M${X(-23)} ${Y(-11)} L${X(-9)} ${Y(-16)} M${X(23)} ${Y(-11)} L${X(9)} ${Y(-16)}" stroke="${ink}" stroke-width="${3*s}" stroke-linecap="round"/>` +
-    `<path d="M${X(-10)} ${Y(21)} Q${X(-5)} ${Y(15)} ${X(0)} ${Y(19)} Q${X(5)} ${Y(23)} ${X(10)} ${Y(17)}" stroke="${ink}" stroke-width="${3.2*s}" fill="none" stroke-linecap="round"/>` +
-    `<path d="M${X(30)} ${Y(-18)} q${3*s} ${7*s} 0 ${10*s} q${-3*s} ${-3*s} 0 ${-10*s}" fill="#7fb6ff"/>`;
-  if (m === 'festa') return happyEye(-15) + happyEye(15) + cheeks +
-    `<path d="M${X(-13)} ${Y(11)} Q${X(0)} ${Y(32)} ${X(13)} ${Y(11)} Z" fill="${ink}"/><path d="M${X(-6)} ${Y(20)} Q${X(0)} ${Y(27)} ${X(6)} ${Y(20)} Z" fill="#f7861a"/>`;
-  if (m === 'dica') return eye(-15) + happyEye(15) + cheeks +
-    `<path d="M${X(-22)} ${Y(-14)} Q${X(-15)} ${Y(-19)} ${X(-8)} ${Y(-15)}" stroke="${ink}" stroke-width="${3*s}" fill="none" stroke-linecap="round"/>` +
-    `<path d="M${X(-9)} ${Y(14)} Q${X(3)} ${Y(23)} ${X(13)} ${Y(11)}" stroke="${ink}" stroke-width="${3.4*s}" fill="none" stroke-linecap="round"/>`;
-  return eye(-15) + eye(15) + cheeks + `<path d="M${X(-11)} ${Y(13)} Q${X(0)} ${Y(25)} ${X(11)} ${Y(13)}" stroke="${ink}" stroke-width="${3.4*s}" fill="none" stroke-linecap="round"/>`;
-}
+// Larquinho — assistente virtual (imagens em img/larquinho)
 function larqConfete() {
   const c = ['#f7861a','#ffcc00','#1fa65a','#e2413b','#7fb6ff'];
   return [[20,30,0],[178,40,1],[30,90,2],[185,110,3],[12,150,4],[160,14,2],[60,12,4],[190,170,0]].map(([x,y,i]) =>
     `<rect x="${x}" y="${y}" width="7" height="11" rx="2" fill="${c[i]}" transform="rotate(${(x*7)%60-30} ${x} ${y})"/>`).join('');
 }
-function larquinho(v, m) {
-  m = m || 'feliz'; v = v || 'A';
-  const arm = m === 'preocupado' ? 'M150 150 C182 152 188 182 170 196' : (m === 'festa' ? 'M150 146 C190 140 196 90 182 52' : 'M150 148 C186 148 192 112 180 80');
-  const noz = m === 'preocupado' ? 'translate(160 190) rotate(160)' : (m === 'festa' ? 'translate(176 30) rotate(-10)' : 'translate(172 58) rotate(-15)');
-  const nozzle = `<g transform="${noz}"><rect x="-10" y="0" width="22" height="30" rx="7" fill="#f7861a"/><rect x="-6" y="6" width="14" height="4" rx="2" fill="#fff" opacity=".6"/><rect x="6" y="-12" width="8" height="16" rx="3" fill="#8a92b5"/></g>`;
-  const hose = `<path d="${arm}" stroke="#141c46" stroke-width="8" fill="none" stroke-linecap="round"/>` + nozzle;
-  const extra = m === 'festa' ? larqConfete() : (m === 'dica' ? `<g transform="translate(18 24)"><circle cx="14" cy="14" r="13" fill="#ffcc00"/><rect x="9" y="26" width="10" height="7" rx="2" fill="#8a92b5"/><path d="M14 -6v-6M-4 2l-5-4M32 2l5-4" stroke="#ffcc00" stroke-width="3" stroke-linecap="round"/></g>` : '');
-  let body;
-  if (v === 'B') { // retrô: corpo laranja, globo no topo
-    body = `<ellipse cx="100" cy="226" rx="62" ry="8" fill="#141c46" opacity=".12"/>
-      <rect x="62" y="206" width="22" height="16" rx="6" fill="#141c46"/><rect x="116" y="206" width="22" height="16" rx="6" fill="#141c46"/>
-      <path d="M52 92 Q52 70 74 70 H126 Q148 70 148 92 V200 Q148 212 136 212 H64 Q52 212 52 200 Z" fill="#f7861a"/>
-      <rect x="52" y="176" width="96" height="12" fill="#16226e"/>
-      <rect x="86" y="58" width="28" height="14" rx="3" fill="#16226e"/>
-      <circle cx="100" cy="38" r="28" fill="#fff" stroke="#16226e" stroke-width="5"/>
-      <text x="100" y="49" text-anchor="middle" font-family="Poppins,Arial" font-weight="900" font-size="32" fill="#f7861a">L</text>
-      <rect x="64" y="86" width="72" height="66" rx="16" fill="#fff4e6" stroke="#16226e" stroke-width="3.5"/>
-      ${larqFace(100, 112, m, 1)}
-      <path d="M52 140 Q30 150 34 172" stroke="#141c46" stroke-width="8" fill="none" stroke-linecap="round"/>`;
-  } else if (v === 'C') { // mini fofo: corpo baixinho, boné laranja
-    body = `<ellipse cx="100" cy="226" rx="66" ry="8" fill="#141c46" opacity=".12"/>
-      <rect x="62" y="204" width="24" height="18" rx="7" fill="#0d1550"/><rect x="114" y="204" width="24" height="18" rx="7" fill="#0d1550"/>
-      <rect x="40" y="72" width="120" height="138" rx="34" fill="#16226e"/>
-      <path d="M48 82 Q100 30 152 82 Z" fill="#f7861a"/><path d="M60 80 Q40 84 26 92 Q44 96 72 88 Z" fill="#f7861a"/><rect x="48" y="78" width="104" height="8" rx="4" fill="#d86d0a"/>
-      <circle cx="100" cy="60" r="10" fill="#fff"/><text x="100" y="65" text-anchor="middle" font-family="Poppins,Arial" font-weight="900" font-size="14" fill="#f7861a">L</text>
-      <ellipse cx="100" cy="124" rx="44" ry="34" fill="#e7eeff"/>
-      ${larqFace(100, 120, m, 1.05)}
-      <rect x="70" y="166" width="60" height="22" rx="8" fill="#f7861a"/><text x="100" y="182" text-anchor="middle" font-family="monospace" font-weight="700" font-size="13" fill="#fff">m³ +</text>
-      <path d="M42 150 Q24 158 28 178" stroke="#0d1550" stroke-width="9" fill="none" stroke-linecap="round"/>`;
-  } else { // A clássico: bomba moderna azul com tela-rosto
-    body = `<ellipse cx="100" cy="226" rx="60" ry="8" fill="#141c46" opacity=".12"/>
-      <rect x="60" y="206" width="24" height="16" rx="6" fill="#0d1550"/><rect x="116" y="206" width="24" height="16" rx="6" fill="#0d1550"/>
-      <rect x="50" y="40" width="100" height="172" rx="20" fill="#16226e"/>
-      <rect x="44" y="26" width="112" height="30" rx="13" fill="#f7861a"/>
-      <text x="100" y="47" text-anchor="middle" font-family="Poppins,Arial" font-weight="900" font-size="15" letter-spacing="1" fill="#fff">LARCO</text>
-      <rect x="62" y="66" width="76" height="66" rx="14" fill="#e7eeff" stroke="#0d1550" stroke-width="3"/>
-      ${larqFace(100, 94, m, 1)}
-      <rect x="64" y="142" width="72" height="22" rx="6" fill="#0d1550"/><text x="100" y="158" text-anchor="middle" font-family="monospace" font-weight="700" font-size="13" fill="#ffcc00">1.000 m³</text>
-      <rect x="50" y="176" width="100" height="10" fill="#f7861a"/>
-      <path d="M50 140 Q30 150 34 172" stroke="#0d1550" stroke-width="8" fill="none" stroke-linecap="round"/>`;
-  }
-  return `<svg viewBox="-10 -10 220 250" xmlns="http://www.w3.org/2000/svg">${extra}${body}${hose}</svg>`;
+const LARQ_H = ['feliz','dica','preocupado','festa'];
+LARQ_H.forEach(h => { const i = new Image(); i.src = `img/larquinho/${h}.webp`; });
+function larqImg(h) {
+  h = LARQ_H.includes(h) ? h : 'feliz';
+  return (h === 'festa' ? `<span class="lq-fx"><svg viewBox="0 0 220 230">${larqConfete()}</svg></span>` : '')
+    + (h === 'dica' ? '<span class="lq-luz">💡</span>' : '') + `<img src="img/larquinho/${h}.webp" alt="Larquinho">`;
 }
-
-const LARQ_V = 'A';
 let LQ = {cart:null, D:null, i:0};
 function larqSet(i) {
   const W = $('#larq'); if (!W || !LQ.D) return; const L = LQ.D.dicas || [];
   if (!L.length) { W.remove(); return; }
   LQ.i = (i + L.length) % L.length; const d = L[LQ.i];
-  W.querySelector('.lq-m').innerHTML = larquinho(LARQ_V, d.humor);
+  W.querySelector('.lq-m').innerHTML = larqImg(d.humor);
   W.querySelector('.lq-b').innerHTML = `<button class="lq-x" title="Fechar">×</button>
     ${LQ.i === 0 ? `<p class="lq-oi">${esc(LQ.D.saudacao)}, ${esc((LQ.D.consultor||'').split(' ')[0])}! 👋</p>` : ''}
     <h4>${esc(d.titulo)}</h4><p>${esc(d.texto)}</p>
