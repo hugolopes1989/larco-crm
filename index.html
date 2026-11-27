@@ -279,7 +279,8 @@ body.noel .btn:not(.sec){box-shadow:0 0 0 2px rgba(255,204,0,.0),0 3px 10px rgba
 .noel-pers.rena .nariz{animation:noelPisca 1.4s infinite;color:#e2413b}
 .noel-fala{position:absolute;bottom:100%;right:0;width:210px;background:#fff;color:var(--ink);border:2px solid var(--or);border-radius:14px;padding:8px 12px;font:600 13px Inter,sans-serif;text-align:left;box-shadow:0 8px 24px rgba(20,28,70,.2);opacity:0;transform:translateY(6px);pointer-events:none;transition:.25s}
 .noel-pers.rena .noel-fala{left:0;right:auto}
-body:has(#larq) .noel-pers.boneco{right:auto;left:24px}body:has(#larq) .noel-pers.noel{right:auto;left:22px}body:has(#larq) .noel-pers.boneco .noel-fala,body:has(#larq) .noel-pers.noel .noel-fala{left:0;right:auto}
+body:has(#larq) .noel-pers.boneco{right:auto;left:24px}body:has(#larq) .noel-pers.noel{right:auto;left:22px;bottom:0;animation-name:noelEspiaE}
+@keyframes noelEspiaE{0%,55%,100%{transform:translateY(32%)}62%,90%{transform:translateY(-4%) rotate(-6deg)}75%{transform:translateY(-4%) rotate(4deg)}}body:has(#larq) .noel-pers.boneco .noel-fala,body:has(#larq) .noel-pers.noel .noel-fala{left:0;right:auto}
 .noel-pers.falando .noel-fala{animation:noelFala 4s forwards}
 @keyframes noelFala{0%{opacity:0;transform:translateY(6px)}8%,85%{opacity:1;transform:none}100%{opacity:0}}
 .noel-pers.falando{animation-play-state:paused}
