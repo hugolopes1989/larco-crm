@@ -279,6 +279,7 @@ body.noel .btn:not(.sec){box-shadow:0 0 0 2px rgba(255,204,0,.0),0 3px 10px rgba
 .noel-pers.rena .nariz{animation:noelPisca 1.4s infinite;color:#e2413b}
 .noel-fala{position:absolute;bottom:100%;right:0;width:210px;background:#fff;color:var(--ink);border:2px solid var(--or);border-radius:14px;padding:8px 12px;font:600 13px Inter,sans-serif;text-align:left;box-shadow:0 8px 24px rgba(20,28,70,.2);opacity:0;transform:translateY(6px);pointer-events:none;transition:.25s}
 .noel-pers.rena .noel-fala{left:0;right:auto}
+body:has(#larq) .noel-pers.boneco{right:auto;left:24px}body:has(#larq) .noel-pers.noel{right:auto;left:22px}body:has(#larq) .noel-pers.boneco .noel-fala,body:has(#larq) .noel-pers.noel .noel-fala{left:0;right:auto}
 .noel-pers.falando .noel-fala{animation:noelFala 4s forwards}
 @keyframes noelFala{0%{opacity:0;transform:translateY(6px)}8%,85%{opacity:1;transform:none}100%{opacity:0}}
 .noel-pers.falando{animation-play-state:paused}
@@ -1184,9 +1185,13 @@ function larqConfete() {
     `<rect x="${x}" y="${y}" width="7" height="11" rx="2" fill="${c[i]}" transform="rotate(${(x*7)%60-30} ${x} ${y})"/>`).join('');
 }
 const LARQ_H = ['feliz','dica','preocupado','festa'];
-LARQ_H.forEach(h => { const i = new Image(); i.src = `img/larquinho/${h}.webp`; });
+// Larquinho de Natal: dezembro inteiro (teste: ?natal=1 no endereço)
+const larqNatal = () => /[?&]natal=1/.test(location.search) || hojeSP().getMonth() === 11;
+const larqDir = () => larqNatal() ? 'img/larquinho/natal' : 'img/larquinho';
+LARQ_H.forEach(h => { const i = new Image(); i.src = `${larqDir()}/${h}.webp`; });
 function larqImg(h) {
   h = LARQ_H.includes(h) ? h : 'feliz';
+  if (larqNatal()) return `<img src="${larqDir()}/${h}.webp" alt="Larquinho de Natal">`; // estrela e confete já vêm na arte
   return (h === 'festa' ? `<span class="lq-fx"><svg viewBox="0 0 220 230">${larqConfete()}</svg></span>` : '')
     + (h === 'dica' ? '<span class="lq-luz">💡</span>' : '') + `<img src="img/larquinho/${h}.webp" alt="Larquinho">`;
 }
