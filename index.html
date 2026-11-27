@@ -957,7 +957,7 @@ function abrirMetas() {
     } catch(er) { toast('Erro ao salvar: ' + er.message); } };
 }
 async function ligarEquipe() {
-  desenharCarteiras(); carregarRFEquipe(); if ($('#larq')) $('#larq').remove(); LQ.cart = null;
+  desenharCarteiras(); carregarRFEquipe(); carregarLarq(true);
   document.querySelectorAll('#perAtv button').forEach(b => b.onclick = () => { S.perAtv = b.dataset.p; document.querySelectorAll('#perAtv button').forEach(x => x.classList.toggle('on', x === b)); carregarAtividade(); });
   document.querySelectorAll('#vAtv button').forEach(b => b.onclick = () => { S.vAtv = b.dataset.v; document.querySelectorAll('#vAtv button').forEach(x => x.classList.toggle('on', x === b)); carregarAtividade(); });
   document.querySelectorAll('#fReg button').forEach(b => b.onclick = () => { S.fReg = b.dataset.r; document.querySelectorAll('#fReg button').forEach(x => x.classList.toggle('on', x === b)); desenharCarteiras(); });
@@ -1116,26 +1116,28 @@ function larqSet(i) {
   LQ.i = (i + L.length) % L.length; const d = L[LQ.i];
   W.querySelector('.lq-m').innerHTML = larqImg(d.humor);
   W.querySelector('.lq-b').innerHTML = `<button class="lq-x" title="Fechar">×</button>
-    ${LQ.i === 0 ? `<p class="lq-oi">${esc(LQ.D.saudacao)}, ${esc((LQ.D.consultor||'').split(' ')[0])}! 👋</p>` : ''}
+    ${LQ.i === 0 ? (S.gestao && LQ.cart !== '__equipe' ? `<p class="lq-oi">Dicas da carteira ${esc(LQ.cart)} · ${esc((LQ.D.consultor||'').split(' ')[0])}</p>` : `<p class="lq-oi">${esc(LQ.D.saudacao)}, ${esc((LQ.D.consultor||'').split(' ')[0])}! 👋</p>`) : ''}
     <h4>${esc(d.titulo)}</h4><p>${esc(d.texto)}</p>
-    <div class="lq-f">${d.cliente_id ? `<button class="lq-cl">Abrir cliente</button>` : '<span></span>'}
+    <div class="lq-f">${d.cliente_id ? `<button class="lq-cl">Abrir cliente</button>` : d.carteira ? `<button class="lq-cl">Abrir ${esc(d.carteira)}</button>` : '<span></span>'}
       <span class="lq-nav"><button class="lq-p">‹</button>${LQ.i+1}/${L.length}<button class="lq-n">›</button></span></div>`;
   W.querySelector('.lq-x').onclick = e => { e.stopPropagation(); W.classList.remove('open'); };
   W.querySelector('.lq-p').onclick = () => larqSet(LQ.i - 1);
   W.querySelector('.lq-n').onclick = () => larqSet(LQ.i + 1);
   if (d.cliente_id) W.querySelector('.lq-cl').onclick = () => { W.classList.remove('open'); abrirFicha(+d.cliente_id); };
+  else if (d.carteira) W.querySelector('.lq-cl').onclick = async () => { W.classList.remove('open'); S.cart = d.carteira; S.tab = 'hoje'; await abrir(); };
   W.querySelector('.lq-n2').textContent = L.length;
 }
-async function carregarLarq() {
-  if (!S.cart) { const w = $('#larq'); if (w) w.remove(); return; }
-  if ($('#larq') && LQ.cart === S.cart) return;
-  let D; try { D = await rpc('larquinho_dicas', {p_carteira: S.cart}); } catch(e) { return; }
-  LQ = {cart: S.cart, D, i: 0};
+async function carregarLarq(eq) {
+  const alvo = eq ? '__equipe' : S.cart;
+  if (!alvo) { const w = $('#larq'); if (w) w.remove(); return; }
+  if ($('#larq') && LQ.cart === alvo) return;
+  let D; try { D = eq ? await rpc('larquinho_equipe', {}) : await rpc('larquinho_dicas', {p_carteira: S.cart}); } catch(e) { const w = $('#larq'); if (w) w.remove(); return; }
+  LQ = {cart: alvo, D, i: 0};
   let W = $('#larq'); if (!W) { W = document.createElement('div'); W.id = 'larq'; document.body.appendChild(W); }
   W.innerHTML = `<div class="lq-b"></div><button class="lq-m" title="Larquinho"></button><span class="lq-n2"></span>`;
   W.querySelector('.lq-m').onclick = () => { W.classList.toggle('open'); if (W.classList.contains('open')) larqSet(LQ.i); };
   larqSet(0);
-  const k = 'larq_' + S.cart + '_' + D.hoje; let visto = false;
+  const k = 'larq_' + alvo + '_' + D.hoje; let visto = false;
   try { visto = !!localStorage.getItem(k); localStorage.setItem(k, '1'); } catch(e) {}
   if (!visto) setTimeout(() => W.classList.add('open'), 700);
 }
