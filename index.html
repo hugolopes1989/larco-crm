@@ -170,6 +170,9 @@ form.ct input,form.ct select,form.ct textarea{border:1px solid var(--line);borde
 .pcard .pl{font:600 13px Inter,sans-serif;color:var(--mut)}.pcard .pv{font:800 24px Inter,sans-serif;color:var(--ink,#0f1b4c);margin:2px 0}.pcard.neg .pv,.pcard .neg{color:#c8302a}
 .pcard .ps{font-size:12.5px;color:var(--mut)}.pbar{height:10px;border-radius:6px;background:#eef1f7;position:relative;overflow:hidden;margin:10px 0 4px}.pbar i{position:absolute;top:0;bottom:0}
 .pbar .u{background:#2f6fd6}.pbar .r{background:#f6c56b}.pbar .o{background:#e2524a}
+.pt.clk,td.clk{cursor:pointer}.pcard .pt.clk:hover,td.clk:hover{background:#f3f6ff}.pcard .pt.clk span:first-child{color:var(--g);font-weight:600}
+.vt-res{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 10px}.vt-res>div{background:#f5f7fd;border-radius:10px;padding:8px 12px;min-width:110px}.vt-res small{display:block;color:var(--mut);font-size:12px}.vt-res b{font:700 18px Poppins,sans-serif}.vt-res b.neg{color:#d63b33}.modal .plist td:nth-child(3){white-space:nowrap}
+.vt-cart{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.vt-cart span{background:#eef2ff;border-radius:999px;padding:3px 10px;font-size:13px}
 .pcard .pt{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-top:1px solid #eef1f7}.pcard .pt small{color:var(--mut)}
 .pcard .pt.sai{color:var(--mut)}.pcard h4{margin:0 0 6px;font:700 15px Inter,sans-serif}.pcard h4 small{font-weight:500;color:var(--mut);margin-left:6px}
 .pcard .cg{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 10px;font-size:13px;padding:5px 0;border-top:1px solid #eef1f7}.pcard .cg b{font-size:14px}
@@ -1931,17 +1934,61 @@ function cartoesFilial(R, gs, ts) {
     const resLivre = R.bandAberta ? Math.max((+rb.cota||0) - (+rb.usado||0), 0) : 0;
     const livreCart = sd - resLivre;
     const terms = ts.filter(t => t.grupos.includes(g)).map(t => { const l = lin('terminal', String(t.id), g);
-      if (!l) return `<div class="pt"><span>${esc(t.nome)}</span><small>sem cota</small></div>`;
+      if (!l) return `<div class="pt clk" data-tg="${t.id}|${g}" role="button" tabindex="0" title="Ver os pedidos de ${GR[g]} em ${esc(t.nome)}"><span>${esc(t.nome)} ›</span><small>sem cota</small></div>`;
       const s = (+l.cota||0) - (+l.usado||0);
-      return `<div class="pt"><span>${esc(t.nome)}</span><span><b class="${s < 0 ? 'neg' : ''}">${nf(s)}</b> <small>/ ${nf(l.cota)}</small></span></div>`; }).join('');
+      return `<div class="pt clk" data-tg="${t.id}|${g}" role="button" tabindex="0" title="Ver os pedidos de ${GR[g]} em ${esc(t.nome)}"><span>${esc(t.nome)} ›</span><span><b class="${s < 0 ? 'neg' : ''}">${nf(s)}</b> <small>/ ${nf(l.cota)}</small></span></div>`; }).join('');
     return `<div class="pcard ${sd < 0 ? 'neg' : ''}"><div class="pl">${GR[g]}</div>
       <div class="pv">${nf(sd)} L</div>
       <div class="ps ${livreCart < 0 ? 'neg' : ''}">${sd < 0 ? 'acima da cota' : 'livres'}${resLivre ? ` · ${nf(livreCart)} para as carteiras` : ''}</div>
       ${barraCota(cota, usado, resLivre)}
       <div class="ps" style="margin-bottom:6px">${nf(usado)} lançado de ${nf(cota)}${+rb.usado || +rb.cota ? ` · bandeiras ${nf(rb.usado)}${R.bandAberta && +rb.cota ? ' de ' + nf(rb.cota) : ''}` : ''}</div>
       ${terms}
-      <div class="pt sai"><span>Sai hoje</span><span>${nf(usado + (+vr.usado||0))}${+vr.usado ? ` · ${nf(vr.usado)} virados` : ''}</span></div></div>`; }).join('')}</div>`;
+      <div class="pt sai clk" data-tg="*|${g}" role="button" tabindex="0" title="Ver todos os pedidos de ${GR[g]} da filial"><span>Sai hoje ›</span><span>${nf(usado + (+vr.usado||0))}${+vr.usado ? ` · ${nf(vr.usado)} virados` : ''}</span></div></div>`; }).join('')}</div>`;
 }
+// Clique no terminal/produto: lista os pedidos lançados naquele terminal com aquele produto
+function verTerminal(tid, g) {
+  const R = relogio(); const fil = P.filiais.find(f => f.codigo === P.fil) || {};
+  const t = tid === '*' ? null : P.terms.find(x => String(x.id) === String(tid));
+  const ks = PRODS.filter(([,,gg]) => gg === g);
+  const volG = p => ks.reduce((a,[k]) => a + (+p[k]||0), 0);
+  const ord = {A:0, R:1, C:2, V:3, E:4, N:5, X:6};
+  const todos = P.peds.filter(p => (!t || p.terminal_id === t.id) && volG(p) > 0 && (ehOp() || !p.virado_base));
+  const ativos = todos.filter(p => !['X','N','E'].includes(statusEf(p, R)))
+    .sort((a,b) => ord[statusEf(a,R)] - ord[statusEf(b,R)] || volG(b) - volG(a));
+  const fora = todos.length - ativos.length;
+  const contaSaldo = p => { const s = statusEf(p, R); return (s === 'C' || s === 'R') && !p.virado_base; };
+  const soma = f => ativos.filter(f).reduce((a,p) => a + volG(p), 0);
+  const tSaldo = soma(contaSaldo), tVir = soma(p => statusEf(p,R) === 'V' || p.virado_base), tAut = soma(p => statusEf(p,R) === 'A');
+  const l = t ? lin('terminal', String(t.id), g) : lin('filial', '', g);
+  const porCart = {}; ativos.forEach(p => { const c = p.origem === 'externa' ? 'COF/BA' : p.carteira; porCart[c] = (porCart[c]||0) + volG(p); });
+  const nomeT = p => (P.terms.find(x => x.id === p.terminal_id) || {}).nome || '';
+  const d = document.createElement('div'); d.className = 'modal';
+  d.innerHTML = `<div class="mbox" style="width:min(880px,100%);max-height:90vh;overflow:auto">
+    <h3>${GR[g]} · ${t ? esc(t.nome) : 'todos os terminais'} · ${esc(fil.nome || '')} · ${dt(P.data)}</h3>
+    <div class="vt-res">
+      ${l && +l.cota ? `<div><small>Cota</small><b>${nf(l.cota)}</b></div>` : ''}
+      <div><small>Lançado (conta no saldo)</small><b>${nf(tSaldo)}</b></div>
+      ${l && +l.cota ? `<div><small>Saldo</small><b class="${(+l.cota) - tSaldo < 0 ? 'neg' : ''}">${nf((+l.cota) - tSaldo)}</b></div>` : ''}
+      ${tVir ? `<div><small>Virados de ontem</small><b>${nf(tVir)}</b></div>` : ''}
+      ${tAut ? `<div><small>Aguardando autorização</small><b>${nf(tAut)}</b></div>` : ''}
+      <div><small>Sai ${R.isHoje ? 'hoje' : 'no dia'}</small><b>${nf(tSaldo + tVir)}</b></div>
+    </div>
+    ${Object.keys(porCart).length ? `<p class="vt-cart">${Object.entries(porCart).sort((a,b) => b[1]-a[1]).map(([c,v]) => `<span><b>${esc(c)}</b> ${nf(v)}</span>`).join('')}</p>` : ''}
+    ${ativos.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th>${t ? '' : '<th>Terminal</th>'}${ks.map(([,lb]) => `<th class="r">${lb}</th>`).join('')}<th class="r">Total</th><th>Lançado</th></tr></thead><tbody>
+      ${ativos.map(p => { const s = statusEf(p, R); return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span></td>
+        <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ' <span class="tag gst">Gestão</span>' : ''}${p.origem === 'externa' ? ' <span class="tag out">COF/BA</span>' : ''}${p.virado_base ? ' <span class="tag">virado na base</span>' : ''}</td>
+        <td>${p.origem === 'externa' ? 'COF/BA' : esc(p.carteira)}</td>${t ? '' : `<td>${esc(nomeT(p))}</td>`}
+        ${ks.map(([k]) => `<td class="r">${+p[k] ? nf(p[k]) : '<span class="mut">–</span>'}</td>`).join('')}<td class="r"><b>${nf(volG(p))}</b></td>
+        <td><small>${new Date(p.criado_em).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'})}</small></td></tr>`; }).join('')}
+      </tbody></table></div>` : `<div class="empty">Nenhum pedido de ${GR[g].toLowerCase()} lançado ${t ? 'neste terminal' : 'nesta filial'} em ${dt(P.data)}.</div>`}
+    ${fora ? `<p class="sub">${fora} pedido(s) cancelado(s), negado(s) ou expirado(s) não entram na lista.</p>` : ''}
+    <div class="mact"><button type="button" class="btn" id="vtOk">Fechar</button></div></div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector('#vtOk').onclick = () => d.remove();
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-tg]'); if (!el) return; const [t, g] = el.dataset.tg.split('|'); verTerminal(t, g); });
+document.addEventListener('keydown', e => { if (e.key !== 'Enter') return; const el = e.target.closest && e.target.closest('[data-tg]'); if (!el) return; const [t, g] = el.dataset.tg.split('|'); verTerminal(t, g); });
 function cartoesCarteiras(R, gs, carts, cons) {
   return `<div class="pcards">${carts.map(c => {
     if (c === 'BA') { const ls = gs.map(g => { const l = lin('carteira', c, g); if (!l || !+l.usado) return '';
@@ -1974,7 +2021,7 @@ function desenharPed() {
       <td class="r">${R.bandAberta && +rb.cota ? `${nf(rb.usado)} <small>de ${nf(rb.cota)}</small>` : nf(rb.usado) + (+rb.usado ? ' <small>usado</small>' : '')}</td><td class="r">${nf(f.usado)}</td>${cel(f.cota, f.usado, R.bandAberta && (+rb.cota||0) > (+rb.usado||0) ? `livre p/ carteiras: ${nf((+f.cota||0) - (+f.usado||0) - ((+rb.cota||0) - (+rb.usado||0)))}` : ' ')}<td class="r">${+vr.usado ? nf(vr.usado) + '<small>fora da cota</small>' : '<span class="mut">0</span>'}</td><td class="r"><b>${nf((+f.usado||0) + (+vr.usado||0))}</b></td></tr>`; }).join('')}</tbody></table>`;
 
   const term = `<table class="ptab"><thead><tr><th>Terminal</th>${gs.map(g => `<th class="r">${GR[g]}</th>`).join('')}</tr></thead><tbody>
-    ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => { if (!t.grupos.includes(g)) return '<td class="r mut">—</td>'; const l = lin('terminal', String(t.id), g); return l ? cel(l.cota, l.usado) : '<td class="r mut">sem cota</td>'; }).join('')}</tr>`).join('')}</tbody></table>`;
+    ${ts.map(t => `<tr><td><b>${esc(t.nome)}</b></td>${gs.map(g => { if (!t.grupos.includes(g)) return '<td class="r mut">—</td>'; const l = lin('terminal', String(t.id), g); return (l ? cel(l.cota, l.usado) : '<td class="r mut">sem cota</td>').replace('<td class="r', `<td data-tg="${t.id}|${g}" class="clk r`); }).join('')}</tr>`).join('')}</tbody></table>`;
 
   const carts = [...new Set((P.painel?.linhas || []).filter(l => l.tipo === 'carteira').map(l => l.chave))].sort((a,b) => (a === 'BA') - (b === 'BA') || a.localeCompare(b));
   const cons = c => (S.resumo.find(r => r.carteira_codigo === c) || {}).consultor_nome || (c === 'BA' ? 'COF / BA · carteiras de fora' : '');
@@ -2000,7 +2047,7 @@ function desenharPed() {
     return b.join(' '); };
   const lista = peds.length ? `<div class="scroll"><table class="ptab plist"><thead><tr><th>Status</th><th>Cliente</th><th>Carteira</th><th>Terminal</th><th>Volumes (L)</th><th>Lançado</th><th></th></tr></thead><tbody>
     ${peds.map(p => { const s = statusEf(p, R); const t = P.terms.find(x => x.id === p.terminal_id) || {};
-      return `<tr class="st-${s}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
+      return `<tr class="st-${s}" data-pid="${p.id}"><td><span class="stp ${ST[s][1]}">${ST[s][0]}</span>${s==='A' && p.status_pedido ? `<small>pediu: ${ST[p.status_pedido][0].toLowerCase()}</small>` : ''}</td>
       <td><b>${esc(p.cliente_nome)}</b>${p.origem === 'gestao' ? ` <span class="tag gst" title="Lançado pela gestão a partir do SICOF">Gestão${p.pedido_sicof ? ' · SICOF ' + esc(p.pedido_sicof) : ''}</span>` : ''}${p.origem === 'externa' ? ' <span class="tag out">COF/BA · SICOF</span>' : ''}${ehOp() && p.virado_base ? ' <span class="tag out">Base: carregado após a abertura</span>' : ''}${ehOp() && p.carregado_em ? ` <span class="tag out">Base: carregou em ${dt(p.carregado_em)}</span>` : ''}${p.bandeira ? ' <span class="tag c pb">bandeira Larco</span>' : ''}${p.grupo_economico && !p.cliente_id ? ' <span class="tag d">grupo</span>' : ''}${p.sem_cadastro ? ' <span class="tag p">sem cadastro</span>' : ''}${p.carteira_cliente && p.carteira_cliente !== p.carteira ? ` <span class="tag out">⚠ cliente da ${esc(p.carteira_cliente)}</span>` : ''}
         ${p.motivo_autorizacao && s === 'A' ? `<small class="mot-a">${esc(p.motivo_autorizacao)}</small>` : ''}${p.observacao ? `<small>${esc(p.observacao)}</small>` : ''}</td>
       <td>${p.origem === 'externa' ? 'COF/BA' : esc(p.carteira)}</td><td>${esc(t.nome || '')}</td><td>${prodTxt(p)}</td>
